@@ -1,0 +1,50 @@
+# dependencies
+**/node_modules/
+/.pnp
+.pnp.*
+
+# next.js / build output
+**/.next/
+**/out/
+**/build/
+*.tsbuildinfo
+next-env.d.ts
+
+# env / secrets — NEVER commit
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+
+# vercel
+.vercel
+**/.vercel
+
+# local Claude / editor config
+.claude/settings.local.json
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# coverage
+/coverage
+
+# --- internal: planning / security / agent-operational files (not for public repo) ---
+# planning & design mockups
+stitch_panacea_web_desgin/
+# AI agent / operational config
+.mcp.json
+**/AGENTS.md
+**/CLAUDE.md
+# security audit & DB patch docs
+CLAUDE_SECURITY_AUDIT.md
+**/SECURITY_AUDIT.md
+**/SUPABASE_SECURITY_PATCH.sql
