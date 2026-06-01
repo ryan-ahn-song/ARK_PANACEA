@@ -49,6 +49,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // 세션 교환 성공 → 대시보드로
-  return NextResponse.redirect(`${origin}/dashboard`);
+  // 세션 교환 성공 → 확인 페이지로
+  return NextResponse.redirect(`${origin}/auth/confirm`);
 }
