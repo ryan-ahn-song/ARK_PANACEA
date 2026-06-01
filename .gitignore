@@ -48,3 +48,5 @@ stitch_panacea_web_desgin/
 CLAUDE_SECURITY_AUDIT.md
 **/SECURITY_AUDIT.md
 **/SUPABASE_SECURITY_PATCH.sql
+
+.vercel

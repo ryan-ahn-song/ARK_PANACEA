@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED_PAGE_ROUTES = ["/dashboard", "/profile", "/ai-guidance", "/guardian"];
 const PROTECTED_API_ROUTES = ["/api/analyse"];
-const AUTH_ROUTES = ["/login", "/auth/verify"];
+const AUTH_ROUTES = ["/login"];
 
 function matchesRoute(pathname: string, routes: string[]) {
   return routes.some((route) => pathname.startsWith(route));
