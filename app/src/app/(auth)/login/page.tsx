@@ -1,16 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  // /auth/callback 에서 실패 시 ?error= 파라미터로 돌아옴
+  const callbackError = searchParams.get("error");
+  const callbackErrorMsg =
+    callbackError === "auth_failed" ? "Link expired or already used. Request a new code." :
+    callbackError === "missing_code" ? "Invalid login link. Please request a new one." :
+    null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,7 +28,11 @@ export default function LoginPage() {
 
     const { error: err } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        // 이메일 링크 클릭 시 /auth/callback 으로 리다이렉트
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
 
     if (err) {
@@ -88,8 +100,10 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
-              <p className="font-sans text-xs text-[#ba1a1a] text-center">{error}</p>
+            {(error || callbackErrorMsg) && (
+              <p className="font-sans text-xs text-[#ba1a1a] text-center">
+                {error || callbackErrorMsg}
+              </p>
             )}
 
             {sent && (
@@ -138,5 +152,13 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
