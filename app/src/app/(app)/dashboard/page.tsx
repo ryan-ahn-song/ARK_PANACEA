@@ -8,7 +8,7 @@ import type { Mission } from "@/lib/supabase/types";
 const INSIGHTS = [
   { num: "01", label: "BODY ATLAS", title: "Visualize Pathology", href: "/body-atlas" },
   { num: "02", label: "COMMUNITY HEATMAP", title: "Real-time Outbreak Data", href: "/heatmap" },
-  { num: "03", label: "AI GUIDANCE", title: "Symptom Analysis", href: "/ai-guidance" },
+  { num: "03", label: "AI GUIDANCE", title: "Symptom Analysis", href: "/guardian" },
 ];
 
 export default function DashboardPage() {
@@ -117,7 +117,7 @@ export default function DashboardPage() {
           </p>
 
           {/* Voice guidance → AI Guidance */}
-          <Link href="/ai-guidance" className="w-full max-w-md">
+          <Link href="/guardian" className="w-full max-w-md">
             <div className="bg-white rounded-2xl border border-[#cfc4c5] p-6 flex items-center justify-between shadow-sm hover:shadow-md hover:border-black transition-all cursor-pointer group mb-12">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-[#e8e8e8] rounded-full flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors">
@@ -162,7 +162,7 @@ export default function DashboardPage() {
               <h2 className="font-serif text-[42px] font-light leading-[1.3]">Daily Prevention Missions</h2>
             </div>
             {/* Progress ring → Guardian */}
-            <Link href="/ai-guidance" className="flex items-center gap-4 bg-[#eeeeee] p-4 rounded-xl border border-[#cfc4c5] hover:border-black transition-all group">
+            <Link href="/guardian" className="flex items-center gap-4 bg-[#eeeeee] p-4 rounded-xl border border-[#cfc4c5] hover:border-black transition-all group">
               <div className="w-16 h-16 relative">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
                   <circle cx="32" cy="32" r="28" fill="transparent" stroke="#cfc4c5" strokeWidth="4" />
