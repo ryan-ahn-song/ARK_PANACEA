@@ -136,7 +136,7 @@ export default function ProfilePage() {
             <section>
               <div className="flex justify-between items-center mb-8">
                 <h2 className="font-sans text-[10px] font-semibold tracking-[0.3em] uppercase text-[#5e5e5e]">Guardian Status</h2>
-                <Link href="/guardian" className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-black underline hover:text-[#5e5e5e] transition-colors">
+                <Link href="/ai-guidance" className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-black underline hover:text-[#5e5e5e] transition-colors">
                   View All Missions →
                 </Link>
               </div>

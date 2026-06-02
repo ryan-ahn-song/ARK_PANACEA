@@ -4,7 +4,7 @@ const FOOTER_LINKS = {
   System: [
     { label: "Risk Matrix", href: "/dashboard" },
     { label: "Body Atlas", href: "/body-atlas" },
-    { label: "Guardian Ops", href: "/guardian" },
+    { label: "Guardian Ops", href: "/ai-guidance" },
   ],
   Legal: [
     { label: "Privacy", href: "#" },

@@ -9,7 +9,6 @@ const NAV_LINKS = [
   { label: "Body Atlas", href: "/body-atlas" },
   { label: "AI Guidance", href: "/ai-guidance" },
   { label: "Heatmap", href: "/heatmap" },
-  { label: "Guardian", href: "/guardian" },
 ];
 
 export default function TopNav() {

@@ -162,7 +162,7 @@ export default function DashboardPage() {
               <h2 className="font-serif text-[42px] font-light leading-[1.3]">Daily Prevention Missions</h2>
             </div>
             {/* Progress ring → Guardian */}
-            <Link href="/guardian" className="flex items-center gap-4 bg-[#eeeeee] p-4 rounded-xl border border-[#cfc4c5] hover:border-black transition-all group">
+            <Link href="/ai-guidance" className="flex items-center gap-4 bg-[#eeeeee] p-4 rounded-xl border border-[#cfc4c5] hover:border-black transition-all group">
               <div className="w-16 h-16 relative">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
                   <circle cx="32" cy="32" r="28" fill="transparent" stroke="#cfc4c5" strokeWidth="4" />

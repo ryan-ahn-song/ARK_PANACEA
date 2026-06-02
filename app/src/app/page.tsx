@@ -240,7 +240,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-16">
             {[
               { label: "Platform", links: [["Risk Dashboard", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/ai-guidance"], ["Heatmap", "/heatmap"]] },
-              { label: "Community", links: [["Guardian", "/guardian"], ["Profile", "/profile"]] },
+              { label: "Community", links: [["Guardian", "/ai-guidance"], ["Profile", "/profile"]] },
               { label: "Account", links: [["Login", "/login"]] },
             ].map((col) => (
               <div key={col.label} className="flex flex-col gap-4">
