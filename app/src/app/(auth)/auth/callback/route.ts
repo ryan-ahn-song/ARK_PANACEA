@@ -1,5 +1,4 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
@@ -8,18 +7,19 @@ import { NextResponse, type NextRequest } from "next/server";
  * 이메일 링크 클릭 시 Supabase는 이 URL로 리다이렉트한다:
  *   /auth/callback?code=<pkce_code>
  *
- * 여기서 code 를 세션으로 교환하고 /dashboard 로 보낸다.
+ * 핵심: 쿠키는 NextResponse 객체에 직접 설정해야 한다.
+ * cookieStore.set()은 Route Handler의 redirect 응답에 반영되지 않는다.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
 
   if (!code) {
-    // 코드가 없으면 로그인 페이지로 (에러 표시)
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
   }
 
-  const cookieStore = await cookies();
+  // 리다이렉트 응답을 먼저 생성하고, 여기에 쿠키를 직접 설정한다
+  const redirectResponse = NextResponse.redirect(`${origin}/auth/confirm`);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,16 +27,16 @@ export async function GET(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Server Component 컨텍스트에서는 set이 불가할 수 있으나 무시
-          }
+          // request와 redirect 응답 양쪽에 쿠키를 설정한다
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          cookiesToSet.forEach(({ name, value, options }) =>
+            redirectResponse.cookies.set(name, value, options)
+          );
         },
       },
     }
@@ -49,6 +49,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // 세션 교환 성공 → 확인 페이지로
-  return NextResponse.redirect(`${origin}/auth/confirm`);
+  // 세션 쿠키가 담긴 리다이렉트 응답 반환
+  return redirectResponse;
 }
