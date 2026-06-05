@@ -35,8 +35,20 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
+
+  // JWT가 남아있지만 유저가 삭제된 경우 (403) → 세션 쿠키를 즉시 초기화
+  if (authError && (authError.status === 403 || authError.message?.includes("does not exist"))) {
+    const clearResponse = NextResponse.redirect(new URL("/login", request.url));
+    // Supabase 세션 관련 쿠키를 만료 처리
+    request.cookies.getAll().forEach(({ name }) => {
+      if (name.startsWith("sb-")) {
+        clearResponse.cookies.set(name, "", { maxAge: 0, path: "/" });
+      }
+    });
+    return clearResponse;
+  }
 
   // /auth/* (callback, confirm 등)는 인증 여부와 무관하게 항상 통과
   if (matchesRoute(pathname, PUBLIC_AUTH_PATHS)) {
