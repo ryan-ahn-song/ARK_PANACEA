@@ -193,7 +193,7 @@ export default function ProfilePage() {
                   <div className="py-12 text-center border border-dashed border-[#cfc4c5] rounded-xl">
                     <span className="material-symbols-outlined text-[#cfc4c5] text-4xl block mb-3">folder_open</span>
                     <p className="font-sans text-xs text-[#5e5e5e] uppercase tracking-widest">No health logs yet</p>
-                    <Link href="/ai-guidance" className="mt-4 inline-block font-sans text-xs font-semibold tracking-[0.2em] uppercase text-black underline">
+                    <Link href="/guardian" className="mt-4 inline-block font-sans text-xs font-semibold tracking-[0.2em] uppercase text-black underline">
                       Start AI Analysis →
                     </Link>
                   </div>
