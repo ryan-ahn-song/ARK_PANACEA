@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type Mode = "login" | "signup" | "forgot";
 
-/* ─── 이메일 전송 완료 화면 ─── */
+/* ─── Inbox screen (after email sent) ─── */
 function InboxScreen({
   email,
   kind,
@@ -19,14 +19,14 @@ function InboxScreen({
   const steps =
     kind === "signup"
       ? [
-          ["mail", "이메일 앱을 열어주세요"],
-          ["verified_user", "인증 링크를 클릭해주세요"],
-          ["lock", "돌아와서 로그인하세요"],
+          ["mail", "Open your email app"],
+          ["verified_user", "Click the verification link"],
+          ["lock", "Return here and sign in"],
         ]
       : [
-          ["mail", "이메일 앱을 열어주세요"],
-          ["lock_reset", "비밀번호 재설정 링크를 클릭해주세요"],
-          ["password", "새 비밀번호를 설정하세요"],
+          ["mail", "Open your email app"],
+          ["lock_reset", "Click the password reset link"],
+          ["password", "Set your new password"],
         ];
 
   return (
@@ -70,7 +70,7 @@ function InboxScreen({
 
           <div className="pt-2 border-t border-[#e8e8e8]">
             <p className="font-sans text-xs text-[#5e5e5e] mb-3">
-              이메일을 받지 못하셨나요?
+              Didn&apos;t receive it?
             </p>
             <button
               onClick={onBack}
@@ -89,7 +89,7 @@ function InboxScreen({
   );
 }
 
-/* ─── 메인 폼 ─── */
+/* ─── Main form ─── */
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -104,24 +104,24 @@ function LoginForm() {
   const [emailSent, setEmailSent] = useState(false);
   const [sentKind, setSentKind] = useState<"signup" | "forgot">("signup");
 
-  /* URL 파라미터 배너 */
+  /* URL param banners */
   const verified = searchParams.get("verified");
   const passwordUpdated = searchParams.get("password_updated");
   const callbackError = searchParams.get("error");
 
   const bannerSuccess =
     verified === "1"
-      ? "이메일 인증 완료! 로그인해주세요."
+      ? "Email verified! You can now sign in."
       : passwordUpdated === "1"
-      ? "비밀번호가 변경되었습니다. 다시 로그인해주세요."
+      ? "Password updated! Please sign in with your new password."
       : null;
 
   const bannerError =
     error ||
     (callbackError === "auth_failed"
-      ? "인증에 실패했습니다. 다시 시도해주세요."
+      ? "Authentication failed. Please try again."
       : callbackError === "missing_code"
-      ? "유효하지 않은 링크입니다. 새 링크를 요청해주세요."
+      ? "Invalid link. Please request a new one."
       : null);
 
   function switchMode(m: Mode) {
@@ -133,7 +133,7 @@ function LoginForm() {
     setEmailSent(false);
   }
 
-  /* ── 로그인 ── */
+  /* ── Sign in ── */
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -147,7 +147,9 @@ function LoginForm() {
     if (err) {
       setError(
         err.message.includes("Invalid login credentials")
-          ? "이메일 또는 비밀번호가 올바르지 않습니다."
+          ? "Incorrect email or password."
+          : err.message.includes("Email not confirmed")
+          ? "Please verify your email before signing in."
           : err.message
       );
       setLoading(false);
@@ -157,15 +159,15 @@ function LoginForm() {
     router.push("/dashboard");
   }
 
-  /* ── 회원가입 ── */
+  /* ── Sign up ── */
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다.");
+      setError("Passwords do not match.");
       return;
     }
     if (password.length < 8) {
-      setError("비밀번호는 최소 8자 이상이어야 합니다.");
+      setError("Password must be at least 8 characters.");
       return;
     }
     setLoading(true);
@@ -190,7 +192,7 @@ function LoginForm() {
     setLoading(false);
   }
 
-  /* ── 비밀번호 찾기 ── */
+  /* ── Forgot password ── */
   async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -214,7 +216,7 @@ function LoginForm() {
     setLoading(false);
   }
 
-  /* ── 이메일 전송 완료 화면 ── */
+  /* ── Inbox screen ── */
   if (emailSent) {
     return (
       <InboxScreen
@@ -225,11 +227,10 @@ function LoginForm() {
     );
   }
 
-  /* ── 모드별 메타 ── */
+  /* ── Mode meta ── */
   type MetaEntry = {
     icon: string;
     subtitle: string;
-    cardTitle: string;
     cardSub: string;
     btnLabel: string;
     onSubmit: (e: React.FormEvent) => Promise<void>;
@@ -239,7 +240,6 @@ function LoginForm() {
     login: {
       icon: "lock",
       subtitle: "Secure Access",
-      cardTitle: "Sign In",
       cardSub: "Enter your credentials to continue",
       btnLabel: loading ? "Signing in..." : "Sign In",
       onSubmit: handleLogin,
@@ -247,7 +247,6 @@ function LoginForm() {
     signup: {
       icon: "person_add",
       subtitle: "Join PANACEA",
-      cardTitle: "Sign Up",
       cardSub: "Create your secure health account",
       btnLabel: loading ? "Creating account..." : "Create Account",
       onSubmit: handleSignup,
@@ -255,7 +254,6 @@ function LoginForm() {
     forgot: {
       icon: "lock_reset",
       subtitle: "Account Recovery",
-      cardTitle: "Forgot Password",
       cardSub: "Enter your email to receive a reset link",
       btnLabel: loading ? "Sending..." : "Send Reset Link",
       onSubmit: handleForgot,
@@ -270,7 +268,7 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] flex items-center justify-center overflow-hidden relative px-6">
-      {/* 배경 블롭 */}
+      {/* Background blobs */}
       <div
         className="absolute w-[400px] h-[400px] rounded-full -top-24 -left-24 pointer-events-none"
         style={{
@@ -290,7 +288,7 @@ function LoginForm() {
       />
 
       <main className="w-full max-w-[440px] py-12 relative z-10">
-        {/* 로고 */}
+        {/* Logo */}
         <div className="flex flex-col items-center mb-10">
           <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4">
             <span className="material-symbols-outlined text-white text-[28px]">
@@ -305,7 +303,7 @@ function LoginForm() {
           </p>
         </div>
 
-        {/* 성공 배너 */}
+        {/* Success banner */}
         {bannerSuccess && (
           <div className="mb-4 px-5 py-3 rounded-2xl bg-[#e6f4ea] border border-[#b7dfc0]">
             <p className="font-sans text-xs text-center text-[#1e5631]">
@@ -314,7 +312,7 @@ function LoginForm() {
           </div>
         )}
 
-        {/* 카드 */}
+        {/* Card */}
         <div
           className="rounded-[40px] p-10 border border-[#cfc4c5]"
           style={{
@@ -322,7 +320,7 @@ function LoginForm() {
             backdropFilter: "blur(24px)",
           }}
         >
-          {/* 카드 헤더 */}
+          {/* Card header */}
           <div className="flex flex-col items-center mb-8">
             <div className="w-14 h-14 rounded-2xl bg-[#f3f3f4] flex items-center justify-center mb-4">
               <span className="material-symbols-outlined text-black text-[28px]">
@@ -335,9 +333,9 @@ function LoginForm() {
             </p>
           </div>
 
-          {/* 폼 */}
+          {/* Form */}
           <form onSubmit={meta.onSubmit} className="space-y-4">
-            {/* 이메일 */}
+            {/* Email */}
             <div>
               <label className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] mb-2 block">
                 Email Address
@@ -353,7 +351,7 @@ function LoginForm() {
               />
             </div>
 
-            {/* 비밀번호 (로그인 / 회원가입) */}
+            {/* Password (login / signup) */}
             {mode !== "forgot" && (
               <div>
                 <label className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] mb-2 block">
@@ -363,14 +361,14 @@ function LoginForm() {
                   type="password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                  placeholder={mode === "signup" ? "최소 8자 이상" : "••••••••"}
+                  placeholder={mode === "signup" ? "At least 8 characters" : "••••••••"}
                   required
                   className="w-full px-5 py-4 rounded-2xl border border-[#cfc4c5] bg-white/60 font-sans text-sm text-black placeholder:text-[#9e9e9e] focus:outline-none focus:border-black transition-colors"
                 />
               </div>
             )}
 
-            {/* 비밀번호 확인 (회원가입) */}
+            {/* Confirm password (signup) */}
             {mode === "signup" && (
               <div>
                 <label className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] mb-2 block">
@@ -380,21 +378,21 @@ function LoginForm() {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => { setConfirmPassword(e.target.value); setError(""); }}
-                  placeholder="비밀번호 재입력"
+                  placeholder="Re-enter your password"
                   required
                   className="w-full px-5 py-4 rounded-2xl border border-[#cfc4c5] bg-white/60 font-sans text-sm text-black placeholder:text-[#9e9e9e] focus:outline-none focus:border-black transition-colors"
                 />
               </div>
             )}
 
-            {/* 에러 메시지 */}
+            {/* Error */}
             {bannerError && (
               <p className="font-sans text-xs text-[#ba1a1a] text-center">
                 {bannerError}
               </p>
             )}
 
-            {/* 제출 버튼 */}
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
@@ -404,7 +402,7 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* 모드 전환 링크 */}
+          {/* Mode switcher */}
           <div className="mt-6 pt-5 border-t border-[#e8e8e8] flex flex-col gap-3 items-center">
             {mode === "login" && (
               <>
@@ -413,14 +411,14 @@ function LoginForm() {
                   onClick={() => switchMode("forgot")}
                   className="font-sans text-xs text-[#5e5e5e] hover:text-black transition-colors"
                 >
-                  비밀번호를 잊으셨나요?
+                  Forgot your password?
                 </button>
                 <button
                   type="button"
                   onClick={() => switchMode("signup")}
                   className="font-sans text-xs font-semibold text-black hover:underline transition-colors"
                 >
-                  계정 만들기 →
+                  Create an account →
                 </button>
               </>
             )}
@@ -430,8 +428,8 @@ function LoginForm() {
                 onClick={() => switchMode("login")}
                 className="font-sans text-xs text-[#5e5e5e] hover:text-black transition-colors"
               >
-                이미 계정이 있으신가요?{" "}
-                <span className="font-semibold text-black">로그인 →</span>
+                Already have an account?{" "}
+                <span className="font-semibold text-black">Sign in →</span>
               </button>
             )}
             {mode === "forgot" && (
@@ -440,24 +438,24 @@ function LoginForm() {
                 onClick={() => switchMode("login")}
                 className="font-sans text-xs text-[#5e5e5e] hover:text-black transition-colors"
               >
-                ← 로그인으로 돌아가기
+                ← Back to sign in
               </button>
             )}
           </div>
         </div>
 
-        {/* 보안 안내 */}
+        {/* Security note */}
         <div className="mt-6 flex items-start gap-3 px-2">
           <span className="material-symbols-outlined text-[#5e5e5e] text-sm mt-0.5">
             lock
           </span>
           <p className="font-sans text-[10px] text-[#5e5e5e] leading-relaxed">
-            모든 데이터는 암호화되어 안전하게 보호됩니다. No password is stored in plain text.
+            All data is encrypted and securely protected. No password is stored in plain text.
           </p>
         </div>
       </main>
 
-      {/* 사이드 카피 (lg+) */}
+      {/* Side copy (lg+) */}
       <aside className="hidden lg:block fixed left-16 bottom-16 max-w-[280px]">
         <h2 className="font-serif text-[42px] font-light leading-tight mb-4">
           Protecting what matters most.

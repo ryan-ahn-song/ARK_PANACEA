@@ -44,11 +44,11 @@ export default function NewPasswordPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다.");
+      setError("Passwords do not match.");
       return;
     }
     if (password.length < 8) {
-      setError("비밀번호는 최소 8자 이상이어야 합니다.");
+      setError("Password must be at least 8 characters.");
       return;
     }
     setLoading(true);
@@ -117,7 +117,7 @@ export default function NewPasswordPage() {
                 New Password
               </h2>
               <p className="font-sans text-xs text-[#5e5e5e] tracking-wide text-center">
-                새로운 비밀번호를 설정해주세요
+                Set a new password for your account
               </p>
             </div>
 
@@ -130,7 +130,7 @@ export default function NewPasswordPage() {
                   type="password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                  placeholder="최소 8자 이상"
+                  placeholder="At least 8 characters"
                   required
                   autoFocus
                   className="w-full px-5 py-4 rounded-2xl border border-[#cfc4c5] bg-[#f9f9f9] font-sans text-sm text-black placeholder:text-[#9e9e9e] focus:outline-none focus:border-black transition-colors"
@@ -145,7 +145,7 @@ export default function NewPasswordPage() {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => { setConfirmPassword(e.target.value); setError(""); }}
-                  placeholder="비밀번호 재입력"
+                  placeholder="Re-enter your password"
                   required
                   className="w-full px-5 py-4 rounded-2xl border border-[#cfc4c5] bg-[#f9f9f9] font-sans text-sm text-black placeholder:text-[#9e9e9e] focus:outline-none focus:border-black transition-colors"
                 />
@@ -182,7 +182,7 @@ export default function NewPasswordPage() {
                 Password Updated
               </h2>
               <p className="font-sans text-sm text-[#5e5e5e]">
-                3초 후 로그인 페이지로 이동합니다...
+                Redirecting to sign in in 3 seconds...
               </p>
             </div>
           </div>
