@@ -1,269 +1,230 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import type { Profile, HealthLog } from "@/lib/supabase/types";
 
 const GUARDIAN_ITEMS = [
-  { icon: "bedtime", code: "GS-001", title: "Mosquito Nets", desc: "4 Units distributed in region Alpha.", progress: 75 },
-  { icon: "clean_hands", code: "GS-042", title: "Sanitation Kits", desc: "Earned for 30-day streak reporting.", progress: 100 },
+  { icon: "bedtime",      code: "GS-001", title: "Mosquito Nets",   desc: "4 Units distributed in region Alpha.",      progress: 75  },
+  { icon: "clean_hands",  code: "GS-042", title: "Sanitation Kits", desc: "Earned for 30-day streak reporting.",        progress: 100 },
 ];
 
-const ACTIVITY_HEIGHTS = [40, 65, 85, 30, 55, 90, 45];
+const ACTIVITY_HEIGHTS = [40, 65, 100, 30, 55, 88, 45];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+const HEALTH_LOGS = [
+  { date: "Feb 12", title: "Elevated Temp",    sub: "38.2°C · Alpha Sector",       severity: "high"   },
+  { date: "Feb 10", title: "Clear Status",     sub: "Normal Metrics · Home Base",  severity: "ok"     },
+  { date: "Feb 08", title: "Fatigue Reported", sub: "Mild Fatigue · Gamma Sector", severity: "mid"    },
+];
+
+const SEVERITY_COLOR: Record<string, string> = {
+  high: "#ba1a1a",
+  ok:   "#50a14f",
+  mid:  "#986801",
+};
+const SEVERITY_ICON: Record<string, string> = {
+  high: "thermostat",
+  ok:   "check_circle",
+  mid:  "warning_amber",
+};
+
 export default function ProfilePage() {
-  const router = useRouter();
-  const supabase = createClient();
-
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [email, setEmail] = useState("");
-  const [logs, setLogs] = useState<HealthLog[]>([]);
-  const [showAllLogs, setShowAllLogs] = useState(false);
   const [toast, setToast] = useState("");
-
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setEmail(user.email ?? "");
-
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-      if (prof) setProfile(prof);
-
-      const { data: healthLogs } = await supabase
-        .from("health_logs")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("event_date", { ascending: false })
-        .limit(10);
-      if (healthLogs) setLogs(healthLogs);
-    }
-    load();
-  }, []);
 
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(""), 2500);
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/");
-  }
-
-  const displayName = profile?.full_name || email.split("@")[0] || "User";
-  const tier = profile?.tier ?? "Community";
-  const level = profile?.guardian_level ?? 1;
-  const percentile = profile?.percentile ?? 50;
-  const xp = profile?.xp ?? 0;
-
-  const visibleLogs = showAllLogs ? logs : logs.slice(0, 3);
-
-  const REFINEMENT_ITEMS = [
-    { icon: "lock", label: "Privacy", action: () => showToast("Privacy settings coming soon") },
-    { icon: "notifications", label: "Alerts", action: () => showToast("Alert preferences coming soon") },
-    { icon: "download", label: "Export", action: () => showToast("Data export coming soon") },
-    { icon: "logout", label: "Logout", action: handleLogout },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#f9f9f9]">
+    <div className="min-h-screen bg-[#f5f5f5]">
+
       {/* Toast */}
       {toast && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-6 py-3 rounded-full font-sans text-xs font-semibold tracking-widest uppercase shadow-lg transition-all">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-6 py-3 rounded-full font-sans text-xs font-semibold tracking-widest uppercase shadow-lg">
           {toast}
         </div>
       )}
 
-      <main className="pt-20 px-16 max-w-[1200px] mx-auto pb-32">
+      <main className="max-w-[780px] mx-auto px-6 pt-10 pb-24">
 
-        {/* Profile Header */}
-        <header className="py-16 md:py-24 flex flex-col md:flex-row gap-12 items-center md:items-start border-b border-[#cfc4c5] mb-20">
-          <div className="relative group">
-            <div className="w-48 h-48 rounded-full overflow-hidden border border-[#cfc4c5]"
-              style={{ filter: "grayscale(1)", transition: "filter 0.7s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.filter = "grayscale(0)")}
-              onMouseLeave={(e) => (e.currentTarget.style.filter = "grayscale(1)")}>
+        {/* ── Profile Hero ── */}
+        <section className="flex items-start gap-8 py-10">
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            <div className="w-28 h-28 rounded-full overflow-hidden border border-[#e0e0e0]">
               <img
-                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&q=80"
-                alt="Profile"
+                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&q=80"
+                alt="Elena Vance"
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="absolute -bottom-2 -right-2 bg-black text-white p-3 rounded-full flex items-center justify-center">
-              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-black rounded-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-white" style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>
+                verified
+              </span>
             </div>
           </div>
 
-          <div className="flex-1 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-4 mb-2">
-              <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">Guardian Level {level}</span>
-              <div className="w-3 h-3 rounded-full bg-black" style={{ animation: "pulse 3s ease-in-out infinite" }} />
+          {/* Info */}
+          <div className="flex-1 pt-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">
+                Global Guardian
+              </span>
+              <div className="w-2 h-2 rounded-full bg-black" />
             </div>
-            <h1 className="font-serif font-semibold text-[48px] leading-[1.2] tracking-tight mb-2">{displayName}</h1>
-            <p className="font-sans text-sm text-[#5e5e5e] mb-4">{email}</p>
-            <p className="font-sans text-[28px] font-light leading-[1.2] tracking-[-0.01em] text-[#5e5e5e] max-w-2xl">
+            <h1 className="font-serif font-semibold text-[36px] leading-tight mb-2">Elena Vance</h1>
+            <p className="font-sans text-sm text-[#5e5e5e] leading-relaxed mb-5 max-w-md">
               Refining personal wellness through data-driven insight and environmental stewardship.
             </p>
-            <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-8">
-              {[
-                { icon: "eco", label: `${tier} Tier ${level}` },
-                { icon: "monitoring", label: `${percentile}th Percentile` },
-                { icon: "star", label: `${xp} XP` },
-              ].map((badge) => (
-                <div key={badge.label} className="px-6 py-3 rounded-xl flex items-center gap-3 border border-[#cfc4c5]"
-                  style={{ background: "rgba(255,255,255,0.75)", backdropFilter: "blur(24px)" }}>
-                  <span className="material-symbols-outlined text-black">{badge.icon}</span>
-                  <span className="font-sans text-xs font-semibold tracking-[0.2em] uppercase">{badge.label}</span>
-                </div>
-              ))}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#d8d8d8] bg-white">
+                <span className="material-symbols-outlined text-black" style={{ fontSize: "15px", fontVariationSettings: "'FILL' 1" }}>shield</span>
+                <span className="font-sans text-[10px] font-semibold tracking-wide">Community Tier 3</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#d8d8d8] bg-white">
+                <span className="material-symbols-outlined text-black" style={{ fontSize: "15px" }}>monitoring</span>
+                <span className="font-sans text-[10px] font-semibold tracking-wide">94th Percentile</span>
+              </div>
             </div>
           </div>
-        </header>
+        </section>
 
-        {/* Bento Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+        {/* Divider */}
+        <div className="h-px bg-[#e0e0e0] mb-10" />
 
-          {/* Left — Guardian + Activity */}
-          <div className="md:col-span-7 space-y-12">
-            <section>
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="font-sans text-[10px] font-semibold tracking-[0.3em] uppercase text-[#5e5e5e]">Guardian Status</h2>
-                <Link href="/guardian" className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-black underline hover:text-[#5e5e5e] transition-colors">
-                  View All Missions →
-                </Link>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* ── Two-column grid ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+          {/* ── Left column ── */}
+          <div className="flex flex-col gap-8">
+
+            {/* Guardian Status */}
+            <div>
+              <p className="font-sans text-[9px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] mb-4">
+                Guardian Status
+              </p>
+              <div className="flex flex-col gap-3">
                 {GUARDIAN_ITEMS.map((item) => (
-                  <div key={item.code} className="p-8 rounded-xl border border-[#cfc4c5] hover:bg-[#f3f3f4] transition-colors"
-                    style={{ background: "rgba(255,255,255,0.75)", backdropFilter: "blur(24px)" }}>
-                    <div className="flex justify-between items-start mb-6">
-                      <span className="material-symbols-outlined text-4xl text-black">{item.icon}</span>
-                      <span className="font-mono text-xs text-[#5e5e5e]/50">{item.code}</span>
+                  <div key={item.code} className="bg-white rounded-xl border border-[#e8e8e8] p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <span className="material-symbols-outlined text-black" style={{ fontSize: "22px" }}>{item.icon}</span>
+                      <span className="font-mono text-[9px] text-[#aaa]">{item.code}</span>
                     </div>
-                    <h3 className="font-serif font-medium text-2xl mb-2">{item.title}</h3>
-                    <p className="font-sans text-base text-[#5e5e5e] mb-4">{item.desc}</p>
-                    <div className="w-full h-1 bg-[#e2e2e2] rounded-full overflow-hidden">
-                      <div className="bg-black h-full rounded-full transition-all duration-1000" style={{ width: `${item.progress}%` }} />
+                    <div className="font-serif font-semibold text-[17px] mb-1">{item.title}</div>
+                    <p className="font-sans text-xs text-[#5e5e5e] mb-3">{item.desc}</p>
+                    <div className="h-1 bg-[#ebebeb] rounded-full overflow-hidden">
+                      <div className="h-full bg-black rounded-full" style={{ width: `${item.progress}%` }} />
                     </div>
                   </div>
                 ))}
               </div>
-            </section>
+            </div>
 
-            <section>
-              <h2 className="font-sans text-[10px] font-semibold tracking-[0.3em] uppercase text-[#5e5e5e] mb-8">Interaction Activity</h2>
-              <div className="p-10 rounded-xl border border-[#cfc4c5]"
-                style={{ background: "rgba(255,255,255,0.75)", backdropFilter: "blur(24px)" }}>
-                <div className="flex items-end justify-between gap-2 h-40 mb-8">
+            {/* Interaction Activity */}
+            <div>
+              <p className="font-sans text-[9px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] mb-4">
+                Interaction Activity
+              </p>
+              <div className="bg-white rounded-xl border border-[#e8e8e8] p-5">
+                <div className="flex items-end gap-2 h-28 mb-3">
                   {ACTIVITY_HEIGHTS.map((h, i) => (
-                    <div key={i} className="flex-1 rounded-sm hover:bg-black transition-all duration-300 cursor-pointer"
-                      style={{ height: `${h}%`, background: i === 2 ? "#000" : "#e2e2e2" }} />
+                    <div key={i} className="flex-1 rounded-sm transition-all"
+                      style={{
+                        height: `${h}%`,
+                        background: i === 2 ? "#000" : "#e2e2e2",
+                      }} />
                   ))}
                 </div>
-                <div className="flex justify-between font-mono text-xs text-[#5e5e5e]/50 uppercase">
-                  {DAYS.map((d) => <span key={d}>{d}</span>)}
+                <div className="flex justify-between">
+                  {DAYS.map((d) => (
+                    <span key={d} className="font-sans text-[9px] text-[#aaa] uppercase tracking-wide flex-1 text-center">{d}</span>
+                  ))}
                 </div>
               </div>
-            </section>
+            </div>
           </div>
 
-          {/* Right — Health Log + Refinement */}
-          <div className="md:col-span-5 space-y-12">
-            <section>
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="font-sans text-[10px] font-semibold tracking-[0.3em] uppercase text-[#5e5e5e]">Health Log</h2>
-                {logs.length > 3 && (
-                  <button
-                    onClick={() => setShowAllLogs((v) => !v)}
-                    className="font-mono text-xs text-black underline cursor-pointer hover:text-[#5e5e5e] transition-colors">
-                    {showAllLogs ? "Show Less" : "View All"}
-                  </button>
-                )}
-              </div>
-              <div className="space-y-0">
-                {logs.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-[#cfc4c5] rounded-xl">
-                    <span className="material-symbols-outlined text-[#cfc4c5] text-4xl block mb-3">folder_open</span>
-                    <p className="font-sans text-xs text-[#5e5e5e] uppercase tracking-widest">No health logs yet</p>
-                    <Link href="/guardian" className="mt-4 inline-block font-sans text-xs font-semibold tracking-[0.2em] uppercase text-black underline">
-                      Start AI Analysis →
-                    </Link>
-                  </div>
-                ) : (
-                  visibleLogs.map((log, i) => (
-                    <div key={i} className="reveal-item py-6 group cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-6">
-                          <span className="material-symbols-outlined opacity-40 group-hover:opacity-100 transition-opacity"
-                            style={{ color: log.severity === "high" ? "#ba1a1a" : log.severity === "low" ? "#50a14f" : "#986801" }}>
-                            {log.severity === "high" ? "warning" : log.severity === "low" ? "check_circle" : "info"}
-                          </span>
-                          <div>
-                            <p className="font-serif font-medium text-sm mb-1">{log.event_date}: {log.type}</p>
-                            <p className="font-mono text-[10px] text-[#5e5e5e]">{log.note ?? log.location ?? "—"}</p>
-                          </div>
-                        </div>
-                        <span className="material-symbols-outlined text-[#5e5e5e] opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+          {/* ── Right column ── */}
+          <div className="flex flex-col gap-8">
 
-            <section>
-              <h2 className="font-sans text-[10px] font-semibold tracking-[0.3em] uppercase text-[#5e5e5e] mb-8">Refinement</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {REFINEMENT_ITEMS.map((item) => (
-                  <button key={item.label}
-                    onClick={item.action}
-                    className="p-6 rounded-xl border border-[#cfc4c5] bg-white flex flex-col items-center gap-3 hover:border-black hover:bg-[#f3f3f4] transition-all group">
-                    <span className="material-symbols-outlined text-black group-hover:scale-110 transition-transform">{item.icon}</span>
-                    <span className="font-sans text-xs font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] group-hover:text-black transition-colors">{item.label}</span>
+            {/* Health Log */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-sans text-[9px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">
+                  Health Log
+                </p>
+                <button className="font-sans text-[10px] font-semibold text-[#5e5e5e] hover:text-black transition-colors underline underline-offset-2">
+                  View All
+                </button>
+              </div>
+              <div className="bg-white rounded-xl border border-[#e8e8e8] divide-y divide-[#f0f0f0]">
+                {HEALTH_LOGS.map((log, i) => (
+                  <div key={i} className="flex items-start gap-3 px-4 py-4">
+                    <span className="material-symbols-outlined mt-0.5 flex-shrink-0"
+                      style={{ fontSize: "16px", color: SEVERITY_COLOR[log.severity], fontVariationSettings: "'FILL' 1" }}>
+                      {SEVERITY_ICON[log.severity]}
+                    </span>
+                    <div>
+                      <div className="font-sans text-xs font-semibold text-black">{log.date}: {log.title}</div>
+                      <div className="font-sans text-[10px] text-[#888] mt-0.5">{log.sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Refinement */}
+            <div>
+              <p className="font-sans text-[9px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] mb-4">
+                Refinement
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { icon: "person",   label: "Privacy", action: () => showToast("Privacy settings coming soon") },
+                  { icon: "notifications", label: "Alerts",   action: () => showToast("Alert preferences coming soon") },
+                  { icon: "database", label: "Export",  action: () => showToast("Data export coming soon") },
+                  { icon: "logout",   label: "Logout",  action: () => showToast("Logged out") },
+                ].map((item) => (
+                  <button key={item.label} onClick={item.action}
+                    className="bg-white rounded-xl border border-[#e8e8e8] py-5 flex flex-col items-center gap-2 hover:border-black hover:bg-[#fafafa] transition-all">
+                    <span className="material-symbols-outlined text-black" style={{ fontSize: "20px" }}>{item.icon}</span>
+                    <span className="font-sans text-[10px] font-semibold tracking-wide text-[#5e5e5e]">{item.label}</span>
                   </button>
                 ))}
               </div>
-            </section>
+            </div>
           </div>
         </div>
 
-        {/* Local Influence Index */}
-        <section className="mt-24 border-t border-[#cfc4c5] pt-24 flex flex-col md:flex-row gap-12 items-center">
-          <div className="w-full md:w-1/2">
-            <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] block mb-6">Impact</span>
-            <h2 className="font-serif text-[42px] font-light leading-[1.3] mb-6">Your Local Influence Index</h2>
-            <p className="font-sans text-base text-[#5e5e5e] leading-relaxed mb-8">
+        {/* Divider */}
+        <div className="h-px bg-[#e0e0e0] my-12" />
+
+        {/* ── Local Influence Index ── */}
+        <section className="flex flex-col md:flex-row gap-10 items-center">
+          <div className="flex-1">
+            <h2 className="font-serif font-semibold text-[30px] leading-tight mb-4">
+              Your Local<br />Influence Index
+            </h2>
+            <p className="font-sans text-sm text-[#5e5e5e] leading-relaxed mb-6 max-w-xs">
               Your reports have contributed to a 12% decrease in vector-borne risks within your immediate 5km radius this month. Intentional tracking is the first step toward universal eradication.
             </p>
             <Link href="/heatmap"
-              className="flex items-center gap-3 font-sans text-xs font-semibold tracking-[0.2em] uppercase text-black hover:text-[#5e5e5e] transition-colors w-fit">
+              className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-black underline underline-offset-4 flex items-center gap-2 hover:text-[#5e5e5e] transition-colors w-fit">
               View Heatmap Influence
-              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>arrow_forward</span>
             </Link>
           </div>
-          <div className="w-full md:w-1/2 aspect-[4/3] rounded-2xl overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80"
+          <div className="w-full md:w-[55%] rounded-2xl overflow-hidden aspect-[4/3]">
+            <img
+              src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80"
               alt="Landscape"
               className="w-full h-full object-cover"
-              style={{ filter: "grayscale(1)" }} />
+            />
           </div>
         </section>
       </main>
-
-      <style>{`
-        @keyframes pulse { 0%,100%{transform:scale(1);opacity:.5} 50%{transform:scale(1.5);opacity:.8} }
-        .reveal-item { border-top: 1px solid #cfc4c5; position: relative; }
-        .reveal-item::after { content:''; position:absolute; bottom:-1px; left:0; width:33%; height:2px; background:#000; transition:width .4s cubic-bezier(.4,0,.2,1); }
-        .reveal-item:hover::after { width:100%; }
-      `}</style>
     </div>
   );
 }
