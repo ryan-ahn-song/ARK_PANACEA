@@ -75,7 +75,7 @@ export default function BodyAtlasPage() {
 
             {/* → AI Guidance */}
             <button
-              onClick={() => router.push("/guardian")}
+              onClick={() => router.push("/ai-guidance")}
               className="mt-4 flex items-center justify-between p-6 bg-[#eeeeee] rounded-xl border border-[#cfc4c5] hover:bg-black hover:text-white hover:border-black transition-all group">
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined group-hover:scale-110 transition-transform">compare_arrows</span>
@@ -158,7 +158,7 @@ export default function BodyAtlasPage() {
             </div>
 
             {/* CTA → AI Guidance */}
-            <div className="relative rounded-2xl overflow-hidden cursor-pointer group" onClick={() => router.push("/guardian")}>
+            <div className="relative rounded-2xl overflow-hidden cursor-pointer group" onClick={() => router.push("/ai-guidance")}>
               <img src="https://images.unsplash.com/photo-1559757175-5700dde675bc?w=400&q=80" alt="AI guidance"
                 className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-700"
                 style={{ filter: "grayscale(1) brightness(0.4)" }} />
@@ -198,7 +198,7 @@ export default function BodyAtlasPage() {
                 </div>
                 <p className="font-sans text-xs text-white/60 uppercase tracking-wider mb-8">Atlas Confidence Interval</p>
                 <button
-                  onClick={() => router.push("/guardian")}
+                  onClick={() => router.push("/ai-guidance")}
                   className="w-full py-3 rounded-full border border-white/30 text-white font-sans text-xs font-semibold tracking-widest uppercase hover:bg-white hover:text-black transition-all">
                   Run AI Symptom Analysis →
                 </button>

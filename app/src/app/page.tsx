@@ -41,7 +41,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-12">
             <span className="font-serif font-semibold text-2xl tracking-tight text-black">PANACEA</span>
             <div className="hidden md:flex items-center gap-8">
-              {[["Risk", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/guardian"], ["Heatmap", "/heatmap"]].map(([label, href]) => (
+              {[["Risk", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/ai-guidance"], ["Heatmap", "/heatmap"]].map(([label, href]) => (
                 <Link key={href} href={href}
                   className="font-sans text-xs font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] hover:text-black transition-colors">
                   {label}
@@ -239,7 +239,7 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-16">
             {[
-              { label: "Platform", links: [["Risk Dashboard", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/guardian"], ["Heatmap", "/heatmap"]] },
+              { label: "Platform", links: [["Risk Dashboard", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/ai-guidance"], ["Heatmap", "/heatmap"]] },
               { label: "Community", links: [["Guardian", "/guardian"], ["Profile", "/profile"]] },
               { label: "Account", links: [["Login", "/login"]] },
             ].map((col) => (
