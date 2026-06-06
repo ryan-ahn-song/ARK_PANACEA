@@ -158,11 +158,15 @@ function LoginForm() {
 
     // Ensure a profiles row exists for new users (idempotent upsert)
     if (authData?.user) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("profiles") as any).upsert(
-        { id: authData.user.id, xp: 0, guardian_level: 1 },
-        { onConflict: "id", ignoreDuplicates: true },
-      ).catch(() => { /* silent — RLS may already cover this */ });
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.from("profiles") as any).upsert(
+          { id: authData.user.id, xp: 0, guardian_level: 1 },
+          { onConflict: "id", ignoreDuplicates: true },
+        );
+      } catch {
+        /* silent — profile row may already exist via DB trigger */
+      }
     }
 
     router.push("/dashboard");
