@@ -131,6 +131,21 @@ export default function ProfilePage() {
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /** Parse the structured note saved by AI Guidance into symptoms + findings */
+  function parseLogNote(note: string | null | undefined): { symptoms: string[] | null; results: string | null } {
+    if (!note) return { symptoms: null, results: null };
+    // New format: "Symptoms: fever, cough | Malaria 72% · Dengue 45%"
+    if (note.includes("Symptoms:") && note.includes("|")) {
+      const parts   = note.split("|");
+      const rawSymp = parts[0]?.replace("Symptoms:", "").trim() ?? "";
+      const symptoms = rawSymp ? rawSymp.split(",").map((s) => s.trim()).filter(Boolean) : null;
+      return { symptoms: symptoms?.length ? symptoms : null, results: parts[1]?.trim() ?? null };
+    }
+    // Legacy format: "AI Analysis — Malaria 72% · ..."
+    return { symptoms: null, results: note.replace(/^AI Analysis — /, "").trim() };
+  }
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(""), 2500);
@@ -604,35 +619,50 @@ export default function ProfilePage() {
                     </Link>
                   </div>
                 ) : (
-                  visibleLogs.map((log, i) => (
-                    <button
-                      key={i}
-                      onClick={() => openLogInAI(log)}
-                      className="reveal-item w-full text-left py-6 group cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-6">
-                          <span
-                            className="material-symbols-outlined opacity-40 group-hover:opacity-100 transition-opacity"
-                            style={{ color: log.severity === "high" ? "#ba1a1a" : log.severity === "low" ? "#50a14f" : "#986801" }}
-                          >
-                            {log.severity === "high" ? "warning" : log.severity === "low" ? "check_circle" : "info"}
-                          </span>
-                          <div>
-                            <p className="font-serif font-medium text-sm mb-1">
-                              {log.event_date}: {log.type}
-                            </p>
-                            <p className="font-mono text-[10px] text-[#5e5e5e]">
-                              {log.note ?? log.location ?? "—"}
-                            </p>
+                  visibleLogs.map((log, i) => {
+                    const { symptoms, results } = parseLogNote(log.note);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => openLogInAI(log)}
+                        className="reveal-item w-full text-left py-6 group cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-4 flex-1 min-w-0">
+                            <span
+                              className="material-symbols-outlined opacity-40 group-hover:opacity-100 transition-opacity mt-0.5 flex-shrink-0"
+                              style={{ color: log.severity === "high" ? "#ba1a1a" : log.severity === "low" ? "#50a14f" : "#986801" }}
+                            >
+                              {log.severity === "high" ? "warning" : log.severity === "low" ? "check_circle" : "info"}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-serif font-medium text-sm mb-1.5">
+                                {log.event_date} · <span className="capitalize">{log.type}</span>
+                              </p>
+                              {symptoms && symptoms.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-1.5">
+                                  {symptoms.map((s) => (
+                                    <span
+                                      key={s}
+                                      className="font-mono text-[8px] px-1.5 py-0.5 bg-[#f3f3f4] border border-[#e2e2e2] rounded-full uppercase tracking-wider text-[#5e5e5e]"
+                                    >
+                                      {s}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="font-mono text-[10px] text-[#5e5e5e] truncate">
+                                {results ?? log.location ?? "—"}
+                              </p>
+                            </div>
                           </div>
+                          <span className="material-symbols-outlined text-[#5e5e5e] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5">
+                            arrow_forward
+                          </span>
                         </div>
-                        <span className="material-symbols-outlined text-[#5e5e5e] opacity-0 group-hover:opacity-100 transition-opacity">
-                          arrow_forward
-                        </span>
-                      </div>
-                    </button>
-                  ))
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </section>

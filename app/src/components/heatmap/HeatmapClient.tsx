@@ -44,7 +44,10 @@ const TAG_COLORS: Record<Filter, string> = {
 /** Normalize a DB disease_tag string to the Filter union */
 function toFilter(tag: string | null | undefined): Filter {
   const u = tag?.toUpperCase() ?? "";
-  if (u === "MALARIA" || u === "DENGUE" || u === "TB" || u === "INFLUENZA") return u as Filter;
+  if (u.includes("MALARIA")) return "MALARIA";
+  if (u.includes("DENGUE")) return "DENGUE";
+  if (u === "TB" || u.includes("TUBERC")) return "TB";
+  if (u.includes("INFLUEN") || u.includes("FLU") || u.includes("H1N1")) return "INFLUENZA";
   return "ALL";
 }
 
