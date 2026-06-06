@@ -12,7 +12,7 @@ export default function ConfirmPage() {
   const [countdown, setCountdown] = useState(3);
   const [email, setEmail] = useState("");
 
-  // 세션 확인 — 직접 접근 방지
+  // Verify session — prevent direct access
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
@@ -23,7 +23,7 @@ export default function ConfirmPage() {
     });
   }, [supabase, router]);
 
-  // 확인 버튼 클릭 후 카운트다운
+  // Countdown after confirm button is clicked
   useEffect(() => {
     if (!confirmed) return;
     if (countdown <= 0) {

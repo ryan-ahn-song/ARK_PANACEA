@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PROTECTED_PAGE_ROUTES = ["/dashboard", "/profile", "/ai-guidance", "/guardian"];
 const PROTECTED_API_ROUTES = ["/api/analyse"];
 const AUTH_ROUTES = ["/login"];
-// /auth/* 경로는 콜백·확인 페이지이므로 항상 통과시킨다
+// /auth/* paths are callback/confirm pages — always let them through
 const PUBLIC_AUTH_PATHS = ["/auth/"];
 
 function matchesRoute(pathname: string, routes: string[]) {
@@ -38,10 +38,10 @@ export async function proxy(request: NextRequest) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
 
-  // JWT가 남아있지만 유저가 삭제된 경우 (403) → 세션 쿠키를 즉시 초기화
+  // JWT exists but user has been deleted (403) → clear session cookies immediately
   if (authError && (authError.status === 403 || authError.message?.includes("does not exist"))) {
     const clearResponse = NextResponse.redirect(new URL("/login", request.url));
-    // Supabase 세션 관련 쿠키를 만료 처리
+    // Expire all Supabase session-related cookies
     request.cookies.getAll().forEach(({ name }) => {
       if (name.startsWith("sb-")) {
         clearResponse.cookies.set(name, "", { maxAge: 0, path: "/" });
@@ -50,7 +50,7 @@ export async function proxy(request: NextRequest) {
     return clearResponse;
   }
 
-  // /auth/* (callback, confirm 등)는 인증 여부와 무관하게 항상 통과
+  // /auth/* (callback, confirm, etc.) always passes through regardless of auth state
   if (matchesRoute(pathname, PUBLIC_AUTH_PATHS)) {
     return supabaseResponse;
   }

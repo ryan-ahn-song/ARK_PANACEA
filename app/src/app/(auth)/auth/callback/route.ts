@@ -2,16 +2,17 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Supabase Auth 콜백 핸들러 (PKCE flow)
+ * Supabase Auth callback handler (PKCE flow)
  *
- * 이메일 인증 / 비밀번호 재설정 링크 클릭 시 Supabase가 이 URL로 리다이렉트한다:
+ * Supabase redirects to this URL when the user clicks an email verification
+ * or password reset link:
  *   /auth/callback?code=<pkce_code>&type=<signup|reset>
  *
- * type=signup  → 이메일 인증 완료 → /login?verified=1
- * type=reset   → 비밀번호 재설정 세션 → /auth/new-password
- * 그 외         → /dashboard (기존 magic link 등 호환)
+ * type=signup  → email verified → /login?verified=1
+ * type=reset   → password reset session → /auth/new-password
+ * other        → /dashboard (compatibility with magic links etc.)
  *
- * 핵심: 세션 쿠키는 NextResponse 객체에 직접 설정해야 한다.
+ * Key: session cookies must be set directly on the NextResponse object.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
   }
 
-  // type에 따라 리다이렉트 목적지 결정
+  // Determine redirect destination based on type
   const destination =
     type === "signup"
       ? `${origin}/login?verified=1`
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // request와 redirect 응답 양쪽에 쿠키를 설정한다
+          // Set cookies on both the request and the redirect response
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );

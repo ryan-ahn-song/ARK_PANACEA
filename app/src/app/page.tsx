@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import TopNav from "@/components/navigation/TopNav";
 
 const CORE_SYSTEMS = [
   { icon: "radar", title: "Real-time Infection-Risk", desc: "Visual risk signals from local environmental and symptom data." },
@@ -32,34 +33,11 @@ export default function LandingPage() {
 
   return (
     <>
-      {/* Nav */}
-      <nav
-        className="fixed top-0 w-full z-50 border-b border-[#cfc4c5]"
-        style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(20px)" }}
-      >
-        <div className="flex justify-between items-center h-20 px-16 max-w-[1200px] mx-auto">
-          <div className="flex items-center gap-12">
-            <span className="font-serif font-semibold text-2xl tracking-tight text-black">PANACEA</span>
-            <div className="hidden md:flex items-center gap-8">
-              {[["Risk", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/ai-guidance"], ["Heatmap", "/heatmap"]].map(([label, href]) => (
-                <Link key={href} href={href}
-                  className="font-sans text-xs font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] hover:text-black transition-colors">
-                  {label}
-                </Link>
-              ))}
-            </div>
-          </div>
-          <Link href="/login">
-            <button className="bg-black text-white rounded-full px-6 py-2 font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#1b1b1b] transition-colors active:scale-95">
-              Join
-            </button>
-          </Link>
-        </div>
-      </nav>
+      <TopNav />
 
       <main>
         {/* Hero */}
-        <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+        <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-14">
           <div className="absolute inset-0 z-0 overflow-hidden">
             <img
               ref={heroImgRef}
@@ -68,21 +46,21 @@ export default function LandingPage() {
               className="w-full h-full object-cover"
               style={{ filter: "grayscale(0.2) contrast(0.9) brightness(1.05)" }}
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-[#f9f9f9]" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0%,transparent_68%,#f9f9f9_100%)]" />
           </div>
 
           <div className="relative z-10 max-w-[1200px] mx-auto px-16 w-full flex flex-col items-start gap-8">
             <div className="flex flex-col gap-4">
-              <span className="font-sans text-xs font-semibold tracking-[0.4em] uppercase text-black">
+              <span className="font-sans text-xs font-semibold tracking-[0.4em] uppercase text-white/80">
                 Panacea Digital Health
               </span>
-              <h1 className="font-serif font-semibold text-[48px] md:text-[64px] leading-[1.1] tracking-tight max-w-3xl">
+              <h1 className="font-serif font-semibold text-[48px] md:text-[64px] leading-[1.1] tracking-tight max-w-3xl text-white">
                 Healthcare <br />
                 <span className="italic font-light">Beyond Words.</span>
               </h1>
             </div>
             <div className="flex flex-col md:flex-row md:items-end gap-12 w-full">
-              <p className="font-sans text-[36px] font-light leading-[1.1] tracking-[-0.01em] max-w-xl text-[#4c4546]/80">
+              <p className="font-sans text-[36px] font-light leading-[1.1] tracking-[-0.01em] max-w-xl text-white/70">
                 Prevent, Protect, Empower. A silent revolution in clinical intelligence and personal longevity.
               </p>
               <div className="flex-grow" />
@@ -239,9 +217,9 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-16">
             {[
-              { label: "Platform", links: [["Risk Dashboard", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/ai-guidance"], ["Heatmap", "/heatmap"]] },
+              { label: "Platform",  links: [["Risk Dashboard", "/dashboard"], ["Body Atlas", "/body-atlas"], ["AI Guidance", "/ai-guidance"], ["Heatmap", "/heatmap"]] },
               { label: "Community", links: [["Guardian", "/guardian"], ["Profile", "/profile"]] },
-              { label: "Account", links: [["Login", "/login"]] },
+              { label: "Legal",     links: [["Terms of Use", "/legal#terms-acceptance"], ["Privacy Policy", "/legal#privacy-commitment"], ["Contact", "/legal#privacy-contact"], ["Login", "/login"]] },
             ].map((col) => (
               <div key={col.label} className="flex flex-col gap-4">
                 <span className="font-sans text-xs font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">{col.label}</span>
@@ -253,7 +231,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="max-w-[1200px] mx-auto px-16 mt-24 pt-8 border-t border-[#cfc4c5] flex justify-between items-center">
-          <p className="font-sans text-xs text-[#5e5e5e]">© 2024 PANACEA Digital Health. All rights reserved.</p>
+          <p className="font-sans text-xs text-[#5e5e5e]">© 2026 PANACEA Digital Health · Team ARK. All rights reserved.</p>
           <div className="flex gap-6">
             <span className="material-symbols-outlined text-[#5e5e5e] hover:text-black cursor-pointer transition-colors">language</span>
             <span className="material-symbols-outlined text-[#5e5e5e] hover:text-black cursor-pointer transition-colors">share</span>

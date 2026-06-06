@@ -1,306 +1,523 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import "leaflet/dist/leaflet.css";
 import type { Map as LeafletMap, Circle } from "leaflet";
+import { createClient } from "@/lib/supabase/client";
+import type { HeatmapReport } from "@/lib/supabase/types";
 
 type Filter = "ALL" | "MALARIA" | "DENGUE" | "TB";
+type Hotspot = { lat: number; lng: number; intensity: number; tag: Filter };
 
-const NEIGHBORHOODS = [
-  { num: "01", name: "Upper Hill District", trend: "Rising +12%", icon: "trending_up", color: "#ba1a1a", filter: "MALARIA" as Filter },
-  { num: "02", name: "Westlands Core", trend: "Stable", icon: "trending_flat", color: "#50a14f", filter: "ALL" as Filter },
-  { num: "03", name: "Kilimani Sector", trend: "Rising +4%", icon: "trending_up", color: "#ba1a1a", filter: "DENGUE" as Filter },
-  { num: "04", name: "Karen Enclave", trend: "Falling -8%", icon: "trending_down", color: "#50a14f", filter: "TB" as Filter },
-];
-
-type Hotspot = {
-  lat: number;
-  lng: number;
-  intensity: number;
-  tag: Filter;
-};
-
-const ALL_HOTSPOTS: Hotspot[] = [
-  { lat: -1.2921, lng: 36.8219, intensity: 0.9, tag: "MALARIA" },
-  { lat: -1.2634, lng: 36.7943, intensity: 0.6, tag: "MALARIA" },
-  { lat: -1.3032, lng: 36.8123, intensity: 0.4, tag: "DENGUE" },
-  { lat: -1.2100, lng: 36.8850, intensity: 0.75, tag: "DENGUE" },
-  { lat: -1.3200, lng: 36.7200, intensity: 0.3, tag: "TB" },
-  { lat: -1.2800, lng: 36.7600, intensity: 0.5, tag: "TB" },
+// ── Fallback data used while DB loads or if table is empty ──────────────────
+const FALLBACK_HOTSPOTS: Hotspot[] = [
+  { lat: -1.2921, lng: 36.8219, intensity: 0.9,  tag: "MALARIA" },
+  { lat: -1.2634, lng: 36.7943, intensity: 0.6,  tag: "MALARIA" },
+  { lat: -1.3032, lng: 36.8123, intensity: 0.4,  tag: "DENGUE"  },
+  { lat: -1.2100, lng: 36.8850, intensity: 0.75, tag: "DENGUE"  },
+  { lat: -1.3200, lng: 36.7200, intensity: 0.3,  tag: "TB"      },
+  { lat: -1.2800, lng: 36.7600, intensity: 0.5,  tag: "TB"      },
   { lat: -1.2450, lng: 36.8600, intensity: 0.65, tag: "MALARIA" },
 ];
 
+const FALLBACK_NEIGHBORHOODS = [
+  { num: "01", name: "Upper Hill District", trend: "Rising +12%", icon: "trending_up",   color: "#ba1a1a", filter: "MALARIA" as Filter },
+  { num: "02", name: "Westlands Core",       trend: "Stable",      icon: "trending_flat", color: "#50a14f", filter: "ALL"     as Filter },
+  { num: "03", name: "Kilimani Sector",      trend: "Rising +4%",  icon: "trending_up",   color: "#ba1a1a", filter: "DENGUE"  as Filter },
+  { num: "04", name: "Karen Enclave",        trend: "Low Data",    icon: "remove",        color: "#5e5e5e", filter: "TB"      as Filter },
+];
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 const TAG_COLORS: Record<Filter, string> = {
-  ALL: "#000",
-  MALARIA: "#50a14f",
-  DENGUE: "#986801",
-  TB: "#a626a4",
+  ALL: "#000", MALARIA: "#50a14f", DENGUE: "#986801", TB: "#a626a4",
 };
+
+/** Normalize a DB disease_tag string to the Filter union */
+function toFilter(tag: string | null | undefined): Filter {
+  const u = tag?.toUpperCase() ?? "";
+  if (u === "MALARIA" || u === "DENGUE" || u === "TB") return u as Filter;
+  return "ALL";
+}
+
+/** Derive neighborhood list from raw DB reports */
+function deriveNeighborhoods(reports: HeatmapReport[]) {
+  const grouped = new Map<string, HeatmapReport[]>();
+  reports.forEach((r) => {
+    if (!r.neighborhood) return;
+    if (!grouped.has(r.neighborhood)) grouped.set(r.neighborhood, []);
+    grouped.get(r.neighborhood)!.push(r);
+  });
+
+  return Array.from(grouped.entries())
+    .slice(0, 6)
+    .map(([name, reps], i) => {
+      const avg   = reps.reduce((s, r) => s + r.intensity, 0) / reps.length;
+      const trend = reps[0].trend ?? (avg > 0.7 ? "Rising" : avg > 0.4 ? "Stable" : "Low Data");
+      const color = avg > 0.7 ? "#ba1a1a" : avg > 0.4 ? "#50a14f" : "#5e5e5e";
+      const icon  = avg > 0.7 ? "trending_up" : avg > 0.4 ? "trending_flat" : "remove";
+      return {
+        num:    String(i + 1).padStart(2, "0"),
+        name,
+        trend,
+        icon,
+        color,
+        filter: toFilter(reps[0].disease_tag),
+      };
+    });
+}
+
+/** Calculate metrics (participants + incidence) from reports for a given filter */
+function calcMetrics(filter: Filter, reports: HeatmapReport[]) {
+  const filtered =
+    filter === "ALL" ? reports : reports.filter((r) => toFilter(r.disease_tag) === filter);
+  const count = filtered.length;
+  const avg   = count > 0 ? filtered.reduce((s, r) => s + r.intensity, 0) / count : 0;
+  const incidence =
+    avg > 0.7 ? "HIGH" : avg > 0.4 ? "MEDIUM" : "LOW";
+  const incColor =
+    incidence === "HIGH" ? "#ba1a1a" : incidence === "MEDIUM" ? "#986801" : "#50a14f";
+  return {
+    participants: count > 0 ? count.toLocaleString() : "—",
+    incidence,
+    incColor,
+  };
+}
 
 function renderMarkers(
   L: typeof import("leaflet"),
   map: LeafletMap,
   filter: Filter,
-  circleLayersRef: React.MutableRefObject<Circle[]>
+  ref: React.MutableRefObject<Circle[]>,
+  hotspots: Hotspot[],
 ) {
-  circleLayersRef.current.forEach((c) => c.remove());
-  circleLayersRef.current = [];
+  ref.current.forEach((c) => c.remove());
+  ref.current = [];
 
-  const spots = filter === "ALL" ? ALL_HOTSPOTS : ALL_HOTSPOTS.filter((s) => s.tag === filter);
+  const spots    = filter === "ALL" ? hotspots : hotspots.filter((s) => s.tag === filter);
   const tagColor = filter === "ALL" ? undefined : TAG_COLORS[filter];
 
   spots.forEach((spot) => {
     const c = tagColor ?? (spot.intensity > 0.7 ? "#ba1a1a" : spot.intensity > 0.4 ? "#986801" : "#50a14f");
-    const outer = L.circle([spot.lat, spot.lng], {
-      color: "transparent",
-      fillColor: c,
-      fillOpacity: 0.2 + spot.intensity * 0.3,
-      radius: 700 + spot.intensity * 900,
-    }).addTo(map);
-    const inner = L.circle([spot.lat, spot.lng], {
-      color: c,
-      fillColor: c,
-      fillOpacity: 0.85,
-      radius: 80,
-      weight: 1,
-    }).addTo(map);
-    circleLayersRef.current.push(outer, inner);
+    ref.current.push(
+      L.circle([spot.lat, spot.lng], {
+        color: "transparent", fillColor: c,
+        fillOpacity: 0.2 + spot.intensity * 0.3,
+        radius: 700 + spot.intensity * 900,
+      }).addTo(map),
+      L.circle([spot.lat, spot.lng], {
+        color: c, fillColor: c, fillOpacity: 0.85, radius: 80, weight: 1,
+      }).addTo(map),
+    );
   });
 }
 
-export default function HeatmapClient() {
-  const mapRef = useRef<LeafletMap | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const circleLayersRef = useRef<Circle[]>([]);
-  const [activeFilter, setActiveFilter] = useState<Filter>("ALL");
+const GLASS = { background: "rgba(255,255,255,0.88)", backdropFilter: "blur(20px)" } as const;
 
-  // 지도 초기화 (한 번만)
+// ── Component ────────────────────────────────────────────────────────────────
+export default function HeatmapClient() {
+  const router          = useRouter();
+  const mapRef          = useRef<LeafletMap | null>(null);
+  const containerRef    = useRef<HTMLDivElement>(null);
+  const circleLayersRef = useRef<Circle[]>([]);
+
+  const [activeFilter,   setActiveFilter]   = useState<Filter>("ALL");
+  const [reports,        setReports]        = useState<HeatmapReport[]>([]);
+  const [dbLoaded,       setDbLoaded]       = useState(false);
+  const [dataLoading,    setDataLoading]    = useState(true);
+  const [showContribute, setShowContribute] = useState(false);
+
+  // ── Load heatmap_reports from Supabase ────────────────────────────────────
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("heatmap_reports")
+      .select("*")
+      .order("reported_at", { ascending: false })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setReports(data);
+          setDbLoaded(true);
+        }
+        setDataLoading(false);
+      });
+  }, []);
+
+  // ── Derived state (memoised to avoid re-render loops) ─────────────────────
+  const hotspots = useMemo<Hotspot[]>(
+    () =>
+      dbLoaded
+        ? reports.map((r) => ({
+            lat:       r.lat,
+            lng:       r.lng,
+            intensity: r.intensity,
+            tag:       toFilter(r.disease_tag),
+          }))
+        : FALLBACK_HOTSPOTS,
+    [dbLoaded, reports],
+  );
+
+  const neighborhoods = useMemo(
+    () => (dbLoaded ? deriveNeighborhoods(reports) : FALLBACK_NEIGHBORHOODS),
+    [dbLoaded, reports],
+  );
+
+  const metrics = useMemo(
+    () =>
+      dbLoaded
+        ? calcMetrics(activeFilter, reports)
+        : {
+            ALL:     { participants: "12,482", incidence: "LOW",    incColor: "#50a14f" },
+            MALARIA: { participants: "4,230",  incidence: "MEDIUM", incColor: "#986801" },
+            DENGUE:  { participants: "3,910",  incidence: "LOW",    incColor: "#50a14f" },
+            TB:      { participants: "2,180",  incidence: "LOW",    incColor: "#50a14f" },
+          }[activeFilter],
+    [dbLoaded, reports, activeFilter],
+  );
+
+  // ── Initialise Leaflet map ─────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === "undefined" || !containerRef.current || mapRef.current) return;
-
-    async function initMap() {
-      const L = await import("leaflet");
-
+    (async () => {
+      const L   = await import("leaflet");
       const map = L.map(containerRef.current!, {
-        center: [-1.2921, 36.8219], // Nairobi
+        center: [-1.2921, 36.8219],
         zoom: 11,
         zoomControl: false,
-        scrollWheelZoom: false,
+        scrollWheelZoom: true,
       });
-
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         attribution: "©OpenStreetMap ©CartoDB",
         maxZoom: 19,
       }).addTo(map);
-
-      L.control.zoom({ position: "bottomright" }).addTo(map);
       mapRef.current = map;
-
-      // 초기 마커 렌더
-      renderMarkers(L, map, "ALL", circleLayersRef);
-    }
-
-    initMap();
+      renderMarkers(L, map, activeFilter, circleLayersRef, hotspots);
+    })();
     return () => {
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 필터 변경 시 마커 업데이트
+  // ── Re-render markers when filter or data changes ─────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
-    async function update() {
+    (async () => {
       const L = await import("leaflet");
-      renderMarkers(L, mapRef.current!, activeFilter, circleLayersRef);
-    }
-    update();
-  }, [activeFilter]);
+      renderMarkers(L, mapRef.current!, activeFilter, circleLayersRef, hotspots);
+    })();
+  }, [activeFilter, hotspots]);
 
-  const filteredNeighborhoods = activeFilter === "ALL"
-    ? NEIGHBORHOODS
-    : NEIGHBORHOODS.filter((n) => n.filter === activeFilter || n.filter === "ALL");
-
-  const metrics = {
-    ALL: { participants: "12,408", symptoms: "842" },
-    MALARIA: { participants: "4,230", symptoms: "318" },
-    DENGUE: { participants: "3,910", symptoms: "276" },
-    TB: { participants: "2,180", symptoms: "134" },
-  };
-  const m = metrics[activeFilter];
+  // ── Filtered neighborhood list ────────────────────────────────────────────
+  const visibleNeighborhoods =
+    activeFilter === "ALL"
+      ? neighborhoods
+      : neighborhoods.filter((n) => n.filter === activeFilter || n.filter === "ALL");
 
   return (
-    <div className="min-h-screen bg-[#f9f9f9] overflow-x-hidden">
-      <main className="relative">
+    <div className="relative h-[calc(100vh-3.5rem)] overflow-hidden bg-[#f3f3f4]">
 
-        {/* ── Hero Section ── */}
-        <section className="max-w-[1200px] mx-auto px-16 pt-40 pb-32">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-end">
-            <div className="md:col-span-3">
-              <div className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] mb-4">
-                Community Intelligence
-              </div>
-              <h1 className="font-serif font-semibold text-[48px] leading-[1.2] tracking-tight mb-6">
-                Real-time Biosurveillance
-              </h1>
-              <p className="font-sans text-[28px] font-light leading-[1.1] tracking-[-0.01em] text-[#4c4546] max-w-2xl">
-                Visualizing anonymized health trends across the city to predict outbreaks before they accelerate.
-              </p>
+      {/* ── Contribute anonymously modal ─────────────────────────────────── */}
+      {showContribute && (
+        <div
+          className="absolute inset-0 z-[2000] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowContribute(false)}
+        >
+          <div
+            className="bg-white rounded-[40px] p-12 max-w-md mx-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 rounded-full bg-black flex items-center justify-center mb-6">
+              <span
+                className="material-symbols-outlined text-white"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                lock
+              </span>
             </div>
-            <div className="md:col-span-2 text-right">
-              <div className="inline-flex flex-col items-end">
-                <div className="font-mono text-xs text-[#5e5e5e] mb-1">DATA_STREAM_ACTIVE</div>
-                <div className="h-px w-24 bg-black mb-4" />
-                <div className="font-serif font-medium text-2xl">v.1.04-Alpha</div>
-              </div>
-            </div>
-          </div>
-        </section>
+            <h3 className="font-serif font-medium text-2xl mb-3">Anonymous Contribution</h3>
+            <p className="font-sans text-sm text-[#5e5e5e] leading-relaxed mb-6">
+              Your symptom report is stripped of all personally identifiable information
+              before being added to the community heatmap. Location data is spatially
+              blurred to a ±500m radius.
+            </p>
 
-        {/* ── Integrated Map Section ── */}
-        <section className="max-w-[1200px] mx-auto px-16 mb-32 relative">
-          <div className="w-full h-[600px] rounded-xl overflow-hidden relative border border-[#cfc4c5] bg-[#f3f3f4]">
-
-            {/* Filter overlay */}
-            <div className="absolute top-8 left-8 z-10 flex flex-col gap-4">
-              {/* Filter pills */}
-              <div className="p-6 rounded-xl flex flex-col gap-4 w-64 border border-[#cfc4c5]"
-                style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(24px)" }}>
-                <div className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e]">Active Filters</div>
-                <div className="flex flex-wrap gap-2">
-                  {(["ALL", "MALARIA", "DENGUE", "TB"] as Filter[]).map((f) => (
-                    <button key={f} onClick={() => setActiveFilter(f)}
-                      className={`px-4 py-2 rounded-full font-sans text-[10px] font-semibold tracking-wider uppercase transition-all ${
-                        activeFilter === f ? "bg-black text-white" : "border border-[#7e7576] text-[#1a1c1c] hover:bg-[#e2e2e2]"
-                      }`}>
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Metrics — filtered */}
-              <div className="p-6 rounded-xl flex flex-col gap-4 w-64 border border-[#cfc4c5]"
-                style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(24px)" }}>
-                <div className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e]">Impact Metrics</div>
-                <div>
-                  <div className="font-serif font-medium text-2xl">{m.participants}</div>
-                  <div className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">Active Participants</div>
-                </div>
-                <div className="h-px bg-[#cfc4c5] w-full" />
-                <div>
-                  <div className="font-serif font-medium text-2xl">{m.symptoms}</div>
-                  <div className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">Reported Symptoms</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Leaflet map */}
-            <div ref={containerRef} className="w-full h-full" />
-
-            {/* Legend */}
-            <div className="absolute bottom-8 right-8 z-10 p-4 rounded-xl flex items-center gap-6 border border-[#cfc4c5]"
-              style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(24px)" }}>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#ba1a1a] animate-pulse" />
-                <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase">High Risk</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#50a14f]" />
-                <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase">Low Risk</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Anonymization Flow ── */}
-        <section className="bg-[#f3f3f4] py-32 border-t border-[#cfc4c5] overflow-hidden relative">
-          <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full pointer-events-none"
-            style={{ background: "#000", filter: "blur(40px)", opacity: 0.04 }} />
-          <div className="max-w-[1200px] mx-auto px-16 relative z-10">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-              <div>
-                <div className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] mb-4">Privacy Engineering</div>
-                <h2 className="font-serif text-[42px] font-light leading-[1.3] mb-8">Anonymous Mapping Model</h2>
-                <p className="font-sans text-base text-[#4c4546] mb-12 max-w-md leading-relaxed">
-                  Demo reports are shown as neighborhood-level clusters. Production data should be aggregated before it becomes a community heatmap.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between p-12 rounded-full border border-[#cfc4c5]"
-                style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(24px)" }}>
-                {[
-                  { icon: "person", label: "Patient", filled: false },
-                  { icon: "lock", label: "Hashing", filled: true },
-                  { icon: "grain", label: "Cluster", filled: false },
-                ].map((step) => (
-                  <div key={step.label} className="flex flex-col items-center gap-4">
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center ${step.filled ? "bg-black" : "border border-[#cfc4c5]"}`}>
-                      <span className={`material-symbols-outlined ${step.filled ? "text-white" : "text-black"}`}
-                        style={step.filled ? { fontVariationSettings: "'FILL' 1" } : {}}>
+            {/* Anonymization pipeline visual */}
+            <div className="flex items-center gap-3 mb-8 p-4 bg-[#f3f3f4] rounded-xl">
+              {[
+                { icon: "person",    label: "Your Data" },
+                { icon: "lock",      label: "Anonymize" },
+                { icon: "public",    label: "Heatmap"   },
+              ].map((step, i, arr) => (
+                <div key={step.label} className="flex items-center gap-3">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${i === 1 ? "bg-black" : "bg-[#e2e2e2]"}`}>
+                      <span
+                        className={`material-symbols-outlined ${i === 1 ? "text-white" : "text-black"}`}
+                        style={{ fontSize: "14px", fontVariationSettings: i === 1 ? "'FILL' 1" : "'FILL' 0" }}
+                      >
                         {step.icon}
                       </span>
                     </div>
-                    <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">{step.label}</span>
+                    <span className="font-sans text-[9px] font-semibold tracking-widest uppercase text-[#5e5e5e] whitespace-nowrap">
+                      {step.label}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Neighborhood Velocity ── */}
-        <section className="max-w-[1200px] mx-auto px-16 py-32">
-          <div className="flex justify-between items-end mb-16">
-            <div>
-              <div className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] mb-4">Regional Breakdown</div>
-              <h2 className="font-serif text-[42px] font-light leading-[1.3]">Neighborhood Velocity</h2>
-            </div>
-            <div className="font-mono text-xs text-[#5e5e5e]">
-              {activeFilter !== "ALL" ? `FILTER: ${activeFilter}` : "ALL PATHOGENS"}
-            </div>
-          </div>
-
-          <div className="flex flex-col">
-            {(activeFilter === "ALL" ? NEIGHBORHOODS : filteredNeighborhoods).map((n, i, arr) => (
-              <div key={n.name}
-                className={`group relative border-t border-[#cfc4c5] py-10 cursor-pointer ${i === arr.length - 1 ? "border-b" : ""}`}
-                onClick={() => setActiveFilter(n.filter === "ALL" ? "ALL" : n.filter)}>
-                <div className="absolute top-0 left-0 h-0.5 bg-black w-1/3 group-hover:w-full transition-all duration-500 ease-out" />
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-                  <div className="md:col-span-1 font-mono text-xs text-[#5e5e5e]">{n.num}</div>
-                  <div className="md:col-span-5 font-serif font-medium text-2xl">{n.name}</div>
-                  <div className="md:col-span-3">
-                    <div className="flex items-center gap-2" style={{ color: n.color }}>
-                      <span className="material-symbols-outlined">{n.icon}</span>
-                      <span className="font-sans text-xs font-semibold tracking-[0.2em] uppercase">{n.trend}</span>
-                    </div>
-                  </div>
-                  <div className="md:col-span-3 text-right">
-                    <button className="font-sans text-xs font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] group-hover:text-black transition-colors">
-                      Filter on Map →
-                    </button>
-                  </div>
+                  {i < arr.length - 1 && (
+                    <span className="text-[#cfc4c5] text-sm mb-4">→</span>
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
+              ))}
+            </div>
 
-      {/* Footer */}
-      <footer className="w-full py-32 bg-white border-t border-[#cfc4c5]">
-        <div className="max-w-[1200px] mx-auto px-16 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="font-serif font-medium text-2xl text-black">PANACEA</div>
-          <div className="flex flex-wrap justify-center gap-8">
-            {["Privacy Policy", "Terms of Service", "Research Papers", "Contact"].map((l) => (
-              <a key={l} href="#" className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e] hover:text-black transition-colors">{l}</a>
-            ))}
-          </div>
-          <div className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e]">
-            © 2025 PANACEA INFECTIOUS DISEASE INSTITUTE.
+            <div className="space-y-3">
+              <button
+                onClick={() => { setShowContribute(false); router.push("/ai-guidance"); }}
+                className="w-full py-4 bg-black text-white rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#1b1b1b] transition-all active:scale-95"
+              >
+                Continue to Report Symptoms
+              </button>
+              <button
+                onClick={() => setShowContribute(false)}
+                className="w-full py-3 text-[#5e5e5e] font-sans text-xs font-semibold tracking-widest uppercase hover:text-black transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-      </footer>
+      )}
+
+      {/* ── Leaflet map ───────────────────────────────────────────────────── */}
+      <div ref={containerRef} className="absolute inset-0 z-0" />
+
+      {/* ── Data loading indicator ────────────────────────────────────────── */}
+      {dataLoading && (
+        <div
+          className="absolute top-6 left-1/2 -translate-x-1/2 z-[1002] flex items-center gap-2 px-4 py-2 rounded-full border border-[#cfc4c5]"
+          style={GLASS}
+        >
+          <div className="w-3 h-3 rounded-full border-2 border-black border-t-transparent animate-spin" />
+          <span className="font-mono text-[10px] uppercase tracking-widest text-[#5e5e5e]">
+            Loading map data...
+          </span>
+        </div>
+      )}
+
+      {/* ── Top-left · Info panel ─────────────────────────────────────────── */}
+      <div
+        className="absolute top-6 left-6 z-[1001] w-64 p-5 rounded-2xl border border-[#cfc4c5]"
+        style={GLASS}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <div
+            className={`w-1.5 h-1.5 rounded-full ${dbLoaded ? "bg-[#50a14f] animate-pulse" : "bg-[#986801]"}`}
+          />
+          <p className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e]">
+            {dbLoaded ? "Live Monitoring" : "Offline Data"}
+          </p>
+        </div>
+        <h1 className="font-serif text-2xl font-semibold mb-2">Nairobi Activity</h1>
+        <p className="font-sans text-xs text-[#4c4546] leading-relaxed">
+          {dbLoaded
+            ? `${hotspots.length} active report${hotspots.length !== 1 ? "s" : ""} across ${neighborhoods.length} zone${neighborhoods.length !== 1 ? "s" : ""}. All data is end-to-end encrypted and spatially blurred.`
+            : "Real-time symptom distribution across your local region. All data is end-to-end encrypted and spatially blurred for absolute privacy."}
+        </p>
+      </div>
+
+      {/* ── Top-center · Filter pills ─────────────────────────────────────── */}
+      <div
+        className="absolute top-6 left-1/2 -translate-x-1/2 z-[1001] flex items-center gap-2 px-4 py-3 rounded-full border border-[#cfc4c5]"
+        style={GLASS}
+      >
+        {(["ALL", "MALARIA", "DENGUE", "TB"] as Filter[]).map((f) => (
+          <button
+            key={f}
+            onClick={() => setActiveFilter(f)}
+            className={`px-4 py-1.5 rounded-full font-sans text-[10px] font-semibold tracking-wider uppercase transition-all ${
+              activeFilter === f ? "bg-black text-white" : "text-[#1a1c1c] hover:bg-[#e2e2e2]"
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Top-right · Metrics (live from DB) ───────────────────────────── */}
+      <div className="absolute top-6 right-6 z-[1001] flex gap-3">
+        <div className="px-5 py-4 rounded-2xl border border-[#cfc4c5]" style={GLASS}>
+          <p className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] mb-1">
+            Incidence
+          </p>
+          <p className="font-serif text-2xl font-semibold" style={{ color: metrics.incColor }}>
+            {metrics.incidence}
+          </p>
+        </div>
+        <div className="px-5 py-4 rounded-2xl border border-[#cfc4c5]" style={GLASS}>
+          <p className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] mb-1">
+            Reports
+          </p>
+          <p className="font-serif text-2xl font-semibold">{metrics.participants}</p>
+        </div>
+      </div>
+
+      {/* ── Right-center · Zoom controls ─────────────────────────────────── */}
+      <div className="absolute right-6 top-1/2 -translate-y-1/2 z-[1001] flex flex-col gap-1">
+        {[
+          { label: "+", action: () => mapRef.current?.zoomIn()  },
+          { label: "−", action: () => mapRef.current?.zoomOut() },
+        ].map(({ label, action }) => (
+          <button
+            key={label}
+            onClick={action}
+            className="w-9 h-9 rounded-xl border border-[#cfc4c5] flex items-center justify-center font-sans font-semibold text-lg hover:bg-white transition-all"
+            style={GLASS}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Bottom-left · Neighborhood trends (live from DB) ─────────────── */}
+      <div
+        className="absolute bottom-6 left-6 z-[1001] w-72 p-5 rounded-2xl border border-[#cfc4c5]"
+        style={GLASS}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <p className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e]">
+            Neighborhood Trends
+          </p>
+          <span className="material-symbols-outlined text-[#5e5e5e]" style={{ fontSize: "16px" }}>
+            trending_up
+          </span>
+        </div>
+
+        {dataLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-5 bg-[#e2e2e2] rounded animate-pulse" />
+            ))}
+          </div>
+        ) : visibleNeighborhoods.length === 0 ? (
+          <p className="font-sans text-xs text-[#5e5e5e]">No data for this filter.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {visibleNeighborhoods.map((n) => (
+              <button
+                key={n.name}
+                className="flex items-center justify-between py-1.5 w-full text-left hover:opacity-70 transition-opacity"
+                onClick={() => setActiveFilter(n.filter === "ALL" ? "ALL" : n.filter)}
+              >
+                <span className="font-sans text-xs font-medium text-[#1a1c1c]">{n.name}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-px rounded-full" style={{ background: n.color }} />
+                  <span
+                    className="font-sans text-[10px] font-semibold tracking-wide whitespace-nowrap"
+                    style={{ color: n.color }}
+                  >
+                    {n.trend}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Bottom-center · Anonymization pipeline + CTA buttons ─────────── */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1001] flex flex-col items-center gap-3">
+        {/* Pipeline visual */}
+        <div
+          className="flex items-center gap-4 px-6 py-4 rounded-full border border-[#cfc4c5]"
+          style={GLASS}
+        >
+          {[
+            { icon: "person",              label: "Identity", filled: false },
+            { icon: "lock",                label: "Anonymize", filled: true  },
+            { icon: "fiber_manual_record", label: "Map Dot",  filled: false },
+          ].map((step, i, arr) => (
+            <div key={step.label} className="flex items-center gap-4">
+              <div className="flex flex-col items-center gap-1">
+                {step.filled ? (
+                  <div className="w-7 h-7 rounded-full bg-black flex items-center justify-center">
+                    <span
+                      className="material-symbols-outlined text-white"
+                      style={{ fontSize: "14px", fontVariationSettings: "'FILL' 1" }}
+                    >
+                      {step.icon}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+                    {step.icon}
+                  </span>
+                )}
+                <span className="font-sans text-[9px] font-semibold tracking-widest uppercase text-[#5e5e5e]">
+                  {step.label}
+                </span>
+              </div>
+              {i < arr.length - 1 && (
+                <span className="text-[#cfc4c5] text-base leading-none">→</span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* CTA buttons — now fully wired */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowContribute(true)}
+            className="px-5 py-2.5 rounded-full border border-[#cfc4c5] font-sans text-[10px] font-semibold tracking-widest uppercase hover:bg-white transition-all"
+            style={GLASS}
+          >
+            Contribute Anonymously →
+          </button>
+          <button
+            onClick={() => router.push("/ai-guidance")}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black text-white font-sans text-[10px] font-semibold tracking-widest uppercase hover:bg-[#1a1c1c] transition-all"
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}
+            >
+              location_on
+            </span>
+            Report Symptoms
+          </button>
+        </div>
+      </div>
+
+      {/* ── Bottom-right · Risk scale ─────────────────────────────────────── */}
+      <div
+        className="absolute bottom-6 right-6 z-[1001] p-4 rounded-2xl border border-[#cfc4c5]"
+        style={GLASS}
+      >
+        <p className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] mb-3">
+          Risk Scale
+        </p>
+        <div className="flex flex-col gap-2">
+          {[
+            { color: "#ba1a1a", label: "High Risk Area",        pulse: true  },
+            { color: "#986801", label: "Moderate Activity",     pulse: false },
+            { color: "#50a14f", label: "Stable / Low Activity", pulse: false },
+          ].map(({ color, label, pulse }) => (
+            <div key={label} className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${pulse ? "animate-pulse" : ""}`}
+                style={{ background: color }}
+              />
+              <span className="font-sans text-[10px] text-[#1a1c1c]">{label}</span>
+            </div>
+          ))}
+        </div>
+        {/* Live/Offline badge */}
+        <div className="mt-3 pt-3 border-t border-[#e2e2e2] flex items-center gap-1.5">
+          <div className={`w-1.5 h-1.5 rounded-full ${dbLoaded ? "bg-[#50a14f]" : "bg-[#986801]"}`} />
+          <span className="font-mono text-[9px] text-[#5e5e5e] uppercase tracking-widest">
+            {dbLoaded ? "Live Data" : "Offline"}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

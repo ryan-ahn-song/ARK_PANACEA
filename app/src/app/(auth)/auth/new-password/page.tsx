@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 
 /**
  * /auth/new-password
- * 비밀번호 재설정 링크 클릭 후 도달하는 페이지.
- * 콜백 라우트에서 이미 세션이 교환되었으므로 새 비밀번호를 입력받아 업데이트한다.
+ * Page reached after clicking the password reset link.
+ * The session is already exchanged in the callback route, so we just collect and update the new password.
  */
 export default function NewPasswordPage() {
   const router = useRouter();
@@ -20,7 +20,7 @@ export default function NewPasswordPage() {
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
-  // 세션 확인 — 직접 접근 방지
+  // Verify session — prevent direct access
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
@@ -31,7 +31,7 @@ export default function NewPasswordPage() {
     });
   }, [supabase, router]);
 
-  // 완료 후 3초 뒤 로그인 페이지로
+  // Redirect to login page 3 seconds after completion
   useEffect(() => {
     if (!done) return;
     const t = setTimeout(async () => {
@@ -76,7 +76,7 @@ export default function NewPasswordPage() {
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] flex flex-col items-center justify-center px-6">
-      {/* 배경 블롭 */}
+      {/* Background blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute w-96 h-96 rounded-full -top-32 -left-32 bg-[#e2e2e2]/50"
@@ -89,7 +89,7 @@ export default function NewPasswordPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-[480px]">
-        {/* 로고 */}
+        {/* Logo */}
         <div className="flex flex-col items-center mb-10">
           <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4">
             <span className="material-symbols-outlined text-white text-[28px]">
@@ -105,7 +105,7 @@ export default function NewPasswordPage() {
         </div>
 
         {!done ? (
-          /* ── 비밀번호 입력 폼 ── */
+          /* ── Password input form ── */
           <div className="w-full rounded-[40px] border border-[#cfc4c5] p-10 bg-white">
             <div className="flex flex-col items-center mb-8">
               <div className="w-14 h-14 rounded-2xl bg-[#f3f3f4] flex items-center justify-center mb-4">
@@ -167,7 +167,7 @@ export default function NewPasswordPage() {
             </form>
           </div>
         ) : (
-          /* ── 완료 화면 ── */
+          /* ── Done screen ── */
           <div className="w-full rounded-[40px] border border-[#cfc4c5] p-10 bg-white flex flex-col items-center text-center gap-6">
             <div className="w-20 h-20 rounded-full bg-black flex items-center justify-center animate-pulse">
               <span
