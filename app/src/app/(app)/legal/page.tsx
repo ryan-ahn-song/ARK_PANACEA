@@ -353,20 +353,20 @@ export default function LegalPage() {
                   {[
                     {
                       step: "Step 1",
-                      title: "On-Device De-identification",
-                      desc: "All hardware and network identifiers are completely stripped from the symptom signal on the client side.",
+                      title: "Server-Side De-identification",
+                      desc: "Symptom data is submitted as enum values only. No user identity, device ID, or precise GPS coordinates are included in the heatmap payload. Location coordinates stored in heatmap_reports represent approximate neighbourhood-level centroids, not individual GPS fixes.",
                       icon: "phonelink_erase",
                     },
                     {
                       step: "Step 2",
-                      title: "Neighborhood-Level Aggregation",
-                      desc: "Individual locations are aggregated strictly to broader municipal or village levels (no precise GPS coordinates are ever transmitted).",
+                      title: "Neighbourhood-Level Aggregation",
+                      desc: "Each heatmap report record stores a neighbourhood-level centroid coordinate and a disease intensity value. Individual user identity cannot be inferred from these records.",
                       icon: "location_city",
                     },
                     {
                       step: "Step 3",
-                      title: "Density-Only Heatmap Mapping",
-                      desc: "Collected data is displayed only as a heat density overlay on the interactive map — never as individual dots or specific markers that could compromise single-user privacy.",
+                      title: "Intensity-Based Map Rendering",
+                      desc: "The map renders reports as radius-weighted circles scaled by intensity — not precise point markers — so no individual submission can be visually isolated on the heatmap.",
                       icon: "blur_on",
                     },
                   ].map(({ step, title, desc, icon }, i, arr) => (
@@ -405,9 +405,10 @@ export default function LegalPage() {
                   policies ensure that each user can only access their own records.
                 </p>
                 <p>
-                  Your personal health logs and mission records are isolated to your account.
-                  Community-level heatmap data is stored in aggregate form only, with no
-                  individual-level records that could be linked back to your identity.
+                  Your personal health logs and mission records are isolated to your account via
+                  RLS. Community heatmap records contain only a disease tag, intensity value, and
+                  neighbourhood-level centroid — no user ID or precise location is stored in
+                  heatmap_reports rows.
                 </p>
               </LegalSection>
 

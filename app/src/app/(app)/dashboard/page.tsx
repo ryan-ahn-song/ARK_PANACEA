@@ -91,20 +91,22 @@ export default function DashboardPage() {
 
     if (wasCompleted) {
       const today = new Date().toISOString().split("T")[0];
-      await supabase
+      const { error: delErr } = await supabase
         .from("user_missions")
         .delete()
         .eq("user_id", userId)
         .eq("mission_id", missionId)
         .gte("completed_at", today);
+      if (delErr) { setSavingId(null); return; }
       setCompletedIds((prev) => { const next = new Set(prev); next.delete(missionId); return next; });
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("user_missions") as any).insert({
+      const { error: insErr } = await (supabase.from("user_missions") as any).insert({
         user_id:      userId,
         mission_id:   missionId,
         completed_at: new Date().toISOString(),
       });
+      if (insErr) { setSavingId(null); return; }
       setCompletedIds((prev) => new Set([...prev, missionId]));
     }
 

@@ -144,7 +144,7 @@ export default function BodyAtlasPage() {
             <span className="font-mono text-[10px] text-[#5e5e5e] uppercase tracking-widest">
               {loading ? "Loading atlas data..." : dbLoaded
                 ? `${diseases.length} pathologies loaded from database`
-                : `${diseases.length} pathologies (offline data)`}
+                : `${diseases.length} pathologies (demo data)`}
             </span>
           </div>
         </section>
@@ -358,7 +358,7 @@ export default function BodyAtlasPage() {
                       Pathologies Tracked
                     </p>
                     <p className="font-sans text-[10px] text-white/40 uppercase tracking-widest mb-6">
-                      {dbLoaded ? "Live · Database" : "Offline Data"}
+                      {dbLoaded ? "Live · Database" : "Demo Data"}
                     </p>
 
                     {/* Mini disease list */}

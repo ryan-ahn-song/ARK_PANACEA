@@ -7,13 +7,13 @@ const FOOTER_LINKS = {
     { label: "Guardian Ops", href: "/guardian" },
   ],
   Legal: [
-    { label: "Privacy", href: "#" },
-    { label: "Terms", href: "#" },
-    { label: "Ethical AI", href: "#" },
+    { label: "Privacy", href: "/legal#privacy-commitment" },
+    { label: "Terms",   href: "/legal#terms-acceptance"  },
+    { label: "Ethical AI", href: "/legal#terms-disclaimer" },
   ],
   Connect: [
-    { label: "Contact", href: "#" },
-    { label: "Journal", href: "#" },
+    { label: "Contact", href: "/legal#privacy-contact" },
+    { label: "GitHub",  href: "https://github.com/Quackk08/ARK_PANACEA" },
   ],
 };
 
@@ -56,7 +56,7 @@ export default function Footer() {
 
         <div className="mt-12 pt-6 border-t border-[#e8e8e8] flex items-center justify-between">
           <p className="font-sans text-[10px] text-[#7e7576]">
-            © 2024 PANACEA Digital Health. All rights reserved.
+            © 2026 PANACEA Digital Health · Team ARK. All rights reserved.
           </p>
           <p className="font-sans text-[10px] text-[#7e7576]">
             SECURED BY PROTOCOL v1
