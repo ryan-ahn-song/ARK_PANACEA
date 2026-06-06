@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile, HealthLog, Mission } from "@/lib/supabase/types";
+import type { Profile, HealthLog, Mission, RiskEvent } from "@/lib/supabase/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type CompletedMission = {
@@ -21,24 +21,37 @@ function jsToMonFirst(jsDay: number) {
   return (jsDay + 6) % 7;
 }
 
+const RISK_COLORS: Record<string, string> = {
+  HIGH:   "#ba1a1a",
+  MEDIUM: "#986801",
+  LOW:    "#50a14f",
+};
+
 export default function ProfilePage() {
-  const router  = useRouter();
+  const router   = useRouter();
   const supabase = createClient();
 
   // ── Core data ─────────────────────────────────────────────────────────────
   const [profile,           setProfile]           = useState<Profile | null>(null);
   const [email,             setEmail]             = useState("");
   const [logs,              setLogs]              = useState<HealthLog[]>([]);
+  const [allLogs,           setAllLogs]           = useState<HealthLog[] | null>(null);
+  const [loadingAllLogs,    setLoadingAllLogs]    = useState(false);
   const [completedMissions, setCompletedMissions] = useState<CompletedMission[]>([]);
   const [activityData,      setActivityData]      = useState<number[]>([10, 10, 10, 10, 10, 10, 10]);
   const [totalMissions,     setTotalMissions]     = useState(0);
+  const [riskEvents,        setRiskEvents]        = useState<RiskEvent[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [showAllLogs,    setShowAllLogs]    = useState(false);
   const [showPrivacy,    setShowPrivacy]    = useState(false);
+  const [showAlerts,     setShowAlerts]     = useState(false);
   const [toast,          setToast]          = useState("");
   const [exporting,      setExporting]      = useState(false);
   const [userId,         setUserId]         = useState<string | null>(null);
+
+  // ── Item 9: account delete state ─────────────────────────────────────────
+  const [deleteStep,     setDeleteStep]     = useState<0 | 1 | 2>(0);
 
   // ── Load all profile data ─────────────────────────────────────────────────
   useEffect(() => {
@@ -104,6 +117,14 @@ export default function ProfilePage() {
       }
       const maxCount = Math.max(...counts, 1);
       setActivityData(counts.map((c) => Math.round((c / maxCount) * 80) + 10));
+
+      // ── Item 8: load latest 3 risk_events ──
+      const { data: events } = await supabase
+        .from("risk_events")
+        .select("*")
+        .order("recorded_at", { ascending: false })
+        .limit(3);
+      if (events) setRiskEvents(events);
     }
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,6 +139,22 @@ export default function ProfilePage() {
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/");
+  }
+
+  // ── Item 7: View All pagination — fetch all logs when toggled ─────────────
+  async function handleToggleAllLogs() {
+    const next = !showAllLogs;
+    setShowAllLogs(next);
+    if (next && logs.length === 10 && allLogs === null && userId) {
+      setLoadingAllLogs(true);
+      const { data } = await supabase
+        .from("health_logs")
+        .select("*")
+        .eq("user_id", userId)
+        .order("event_date", { ascending: false });
+      if (data) setAllLogs(data);
+      setLoadingAllLogs(false);
+    }
   }
 
   // Real JSON export of health logs
@@ -152,23 +189,46 @@ export default function ProfilePage() {
     router.push(`/ai-guidance?disease=${encodeURIComponent(disease)}`);
   }
 
+  // ── Item 9: Account deletion ──────────────────────────────────────────────
+  async function handleDeleteAccount() {
+    if (!userId) return;
+    setDeleteStep(2);
+    try {
+      // Delete user data client-side (auth.users row deleted by DB CASCADE on server)
+      await supabase.from("health_logs").delete().eq("user_id", userId);
+      await supabase.from("user_missions").delete().eq("user_id", userId);
+      await supabase.from("reward_redemptions").delete().eq("user_id", userId);
+      await supabase.from("profiles").delete().eq("id", userId);
+      // Sign out
+      await supabase.auth.signOut();
+      router.push("/?deleted=1");
+    } catch {
+      showToast("Deletion failed. Please try again.");
+      setDeleteStep(0);
+    }
+  }
+
   // ── Derived values ────────────────────────────────────────────────────────
   const displayName  = profile?.full_name || email.split("@")[0] || "User";
   const tier         = profile?.tier ?? "Community";
   const level        = profile?.guardian_level ?? 1;
   const percentile   = profile?.percentile ?? 0;
   const xp           = profile?.xp ?? 0;
-  const visibleLogs  = showAllLogs ? logs : logs.slice(0, 3);
+
+  // Item 7: use allLogs (full set) when expanded and loaded; else first 10
+  const baseLogsForDisplay = showAllLogs && allLogs !== null ? allLogs : logs;
+  const visibleLogs        = showAllLogs ? baseLogsForDisplay : logs.slice(0, 3);
+
   const logsThisMonth = logs.filter((l) => {
     const d = new Date(l.event_date);
     const now = new Date();
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
 
-  // Refinement actions
+  // Refinement actions — Item 8: Alerts opens real modal
   const REFINEMENT_ITEMS = [
     { icon: "lock",          label: "Privacy",  action: () => setShowPrivacy(true) },
-    { icon: "notifications", label: "Alerts",   action: () => showToast("Alerts coming soon") },
+    { icon: "notifications", label: "Alerts",   action: () => setShowAlerts(true)  },
     { icon: "download",      label: "Export",   action: handleExport },
     { icon: "logout",        label: "Logout",   action: handleLogout },
   ];
@@ -183,11 +243,101 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* ── Item 8: Alerts modal ─────────────────────────────────────────────── */}
+      {showAlerts && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowAlerts(false)}
+        >
+          <div
+            className="bg-white rounded-[40px] p-12 max-w-md w-full mx-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center">
+                <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  notifications_active
+                </span>
+              </div>
+              <div>
+                <h3 className="font-serif font-medium text-2xl">Risk Alerts</h3>
+                <p className="font-sans text-xs text-[#5e5e5e] uppercase tracking-widest">
+                  Latest community events
+                </p>
+              </div>
+            </div>
+
+            {riskEvents.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="font-sans text-sm text-[#5e5e5e]">No risk events recorded yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4 mb-8">
+                {riskEvents.map((ev) => (
+                  <div key={ev.id} className="p-5 rounded-2xl border border-[#e2e2e2] bg-[#f9f9f9]">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ background: RISK_COLORS[ev.level] ?? "#986801" }}
+                      />
+                      <span
+                        className="font-sans text-[10px] font-semibold tracking-widest uppercase"
+                        style={{ color: RISK_COLORS[ev.level] ?? "#986801" }}
+                      >
+                        {ev.level} RISK
+                      </span>
+                      <span className="font-mono text-[10px] text-[#5e5e5e] ml-auto">
+                        {ev.recorded_at
+                          ? new Date(ev.recorded_at).toLocaleString("en-US", {
+                              month: "short", day: "numeric",
+                              hour: "2-digit", minute: "2-digit",
+                            })
+                          : "—"}
+                      </span>
+                    </div>
+                    <p className="font-sans text-sm text-[#1a1c1c] leading-relaxed">{ev.description}</p>
+                    {ev.location && (
+                      <p className="font-mono text-[10px] text-[#5e5e5e] mt-2">📍 {ev.location}</p>
+                    )}
+                    {ev.temp_celsius !== null && (
+                      <div className="flex gap-4 mt-3">
+                        {ev.temp_celsius !== null && (
+                          <span className="font-mono text-[10px] text-[#5e5e5e]">
+                            🌡 {ev.temp_celsius}°C
+                          </span>
+                        )}
+                        {ev.humidity_pct !== null && (
+                          <span className="font-mono text-[10px] text-[#5e5e5e]">
+                            💧 {ev.humidity_pct}% humidity
+                          </span>
+                        )}
+                        {ev.aqi && (
+                          <span className="font-mono text-[10px] text-[#5e5e5e]">
+                            AQI: {ev.aqi}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowAlerts(false)}
+              className="w-full py-3 rounded-full bg-black text-white font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#1b1b1b] transition-all"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Privacy modal ──────────────────────────────────────────────────── */}
       {showPrivacy && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowPrivacy(false)}
+          onClick={() => { setShowPrivacy(false); setDeleteStep(0); }}
         >
           <div
             className="bg-white rounded-[40px] p-12 max-w-md w-full mx-6 shadow-2xl"
@@ -217,8 +367,47 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
+
+            {/* ── Item 9: Account deletion ── */}
+            <div className="border-t border-[#e2e2e2] pt-6 mb-6">
+              {deleteStep === 0 && (
+                <button
+                  onClick={() => setDeleteStep(1)}
+                  className="w-full py-3 rounded-full border border-[#ba1a1a] text-[#ba1a1a] font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#ba1a1a] hover:text-white transition-all"
+                >
+                  Delete Account
+                </button>
+              )}
+              {deleteStep === 1 && (
+                <div className="space-y-3">
+                  <p className="font-sans text-xs text-[#ba1a1a] text-center leading-relaxed">
+                    This will permanently delete your health logs and mission history.
+                    Your authentication account will be removed within 24 hours.
+                  </p>
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="w-full py-3 rounded-full bg-[#ba1a1a] text-white font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#9b1515] transition-all"
+                  >
+                    Yes, Delete Everything
+                  </button>
+                  <button
+                    onClick={() => setDeleteStep(0)}
+                    className="w-full py-3 rounded-full border border-[#e2e2e2] text-[#5e5e5e] font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#f3f3f4] transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              {deleteStep === 2 && (
+                <div className="flex items-center justify-center gap-3 py-3">
+                  <span className="material-symbols-outlined text-[#ba1a1a] animate-spin">progress_activity</span>
+                  <p className="font-sans text-xs text-[#5e5e5e] uppercase tracking-widest">Deleting your data…</p>
+                </div>
+              )}
+            </div>
+
             <button
-              onClick={() => setShowPrivacy(false)}
+              onClick={() => { setShowPrivacy(false); setDeleteStep(0); }}
               className="w-full py-3 rounded-full bg-black text-white font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#1b1b1b] transition-all"
             >
               Got It
@@ -322,7 +511,6 @@ export default function ProfilePage() {
                   {completedMissions.map((um, idx) => {
                     const m = um.missions;
                     if (!m) return null;
-                    // Progress relative to XP milestone
                     const xpProgress = Math.min(((xp % 500) / 500) * 100, 100);
                     return (
                       <div key={um.id}
@@ -371,7 +559,6 @@ export default function ProfilePage() {
                     <div key={i}
                       className="flex-1 rounded-sm hover:bg-black transition-all duration-300 cursor-default group relative"
                       style={{ height: `${h}%`, background: i === new Date().getDay() - 1 || (i === 6 && new Date().getDay() === 0) ? "#000" : "#e2e2e2" }}>
-                      {/* Tooltip */}
                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[9px] px-2 py-1 rounded-full whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity font-mono uppercase tracking-wide pointer-events-none">
                         {activityData[i] > 10 ? `${Math.round((activityData[i] - 10) / 0.8)} act.` : "None"}
                       </div>
@@ -388,7 +575,7 @@ export default function ProfilePage() {
           {/* Right — Health Log + Refinement */}
           <div className="md:col-span-5 space-y-12">
 
-            {/* Health Log */}
+            {/* Health Log — Item 7: real View All */}
             <section>
               <div className="flex justify-between items-center mb-8">
                 <h2 className="font-sans text-[10px] font-semibold tracking-[0.3em] uppercase text-[#5e5e5e]">
@@ -396,9 +583,9 @@ export default function ProfilePage() {
                 </h2>
                 {logs.length > 3 && (
                   <button
-                    onClick={() => setShowAllLogs((v) => !v)}
+                    onClick={handleToggleAllLogs}
                     className="font-mono text-xs text-black underline cursor-pointer hover:text-[#5e5e5e] transition-colors">
-                    {showAllLogs ? "Show Less" : "View All"}
+                    {loadingAllLogs ? "Loading…" : showAllLogs ? "Show Less" : "View All"}
                   </button>
                 )}
               </div>

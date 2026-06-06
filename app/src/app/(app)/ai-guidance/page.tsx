@@ -51,13 +51,27 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | undef
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
 }
 
-// Maps a disease name (lowercase) from Body Atlas to relevant symptom IDs
-const DISEASE_SYMPTOM_MAP: Record<string, string[]> = {
+// Hardcoded fallback — used until pathologies table is loaded from DB
+const FALLBACK_DISEASE_SYMPTOM_MAP: Record<string, string[]> = {
   malaria:   ["fever", "chills", "headache", "fatigue"],
   influenza: ["fever", "cough", "headache"],
   dengue:    ["fever", "headache", "other"],
   tb:        ["cough", "fatigue"],
 };
+
+// Maps a free-text DB symptom string to one of the SYMPTOMS ids
+const VALID_SYMPTOM_IDS = new Set(["fever", "cough", "fatigue", "chills", "headache", "other"]);
+function mapToSymptomId(dbSymptom: string): string | null {
+  const s = dbSymptom.toLowerCase().trim();
+  if (VALID_SYMPTOM_IDS.has(s)) return s;
+  if (s.includes("fever") || s.includes("temperature") || s.includes("hot")) return "fever";
+  if (s.includes("cough") || s.includes("throat") || s.includes("chest")) return "cough";
+  if (s.includes("fatigue") || s.includes("tired") || s.includes("weak") || s.includes("weight")) return "fatigue";
+  if (s.includes("chill") || s.includes("sweat") || s.includes("shiver") || s.includes("night")) return "chills";
+  if (s.includes("head") || s.includes("eye") || s.includes("migraine")) return "headache";
+  if (s.includes("pain") || s.includes("ache") || s.includes("nausea") || s.includes("rash") || s.includes("joint") || s.includes("vomit")) return "other";
+  return null;
+}
 
 // Derive severity from the top finding's probability string e.g. "72%"
 function pctToSeverity(pct: string): "high" | "medium" | "low" {
@@ -83,6 +97,7 @@ export default function AIGuidancePage() {
 
   const [selected, setSelected]           = useState<Set<string>>(new Set());
   const [prefillDisease, setPrefillDisease] = useState<string | null>(null);
+  const [diseaseSymptomMap, setDiseaseSymptomMap] = useState<Record<string, string[]>>(FALLBACK_DISEASE_SYMPTOM_MAP);
   const [loading, setLoading]             = useState(false);
   const [results, setResults]             = useState<Finding[] | null>(null);
   const [logSaved, setLogSaved]           = useState(false);
@@ -93,16 +108,41 @@ export default function AIGuidancePage() {
   const [riskAlert, setRiskAlert]         = useState<RiskEvent | null>(null);
   const [alertLoading, setAlertLoading]   = useState(true);
 
+  // Item 10: Load pathologies from DB → build dynamic DISEASE_SYMPTOM_MAP
+  useEffect(() => {
+    supabase
+      .from("pathologies")
+      .select("name, symptom_clusters")
+      .then(({ data }) => {
+        if (!data || data.length === 0) return;
+        const built: Record<string, string[]> = { ...FALLBACK_DISEASE_SYMPTOM_MAP };
+        data.forEach((p) => {
+          if (!p.name || !p.symptom_clusters) return;
+          const clusters = p.symptom_clusters as string[];
+          if (!Array.isArray(clusters)) return;
+          const mappedIds = Array.from(
+            new Set(clusters.map(mapToSymptomId).filter((id): id is string => id !== null))
+          );
+          if (mappedIds.length > 0) {
+            built[p.name.toLowerCase()] = mappedIds;
+            // Also map common abbreviations
+            if (p.name.toLowerCase() === "tuberculosis") built["tb"] = mappedIds;
+          }
+        });
+        setDiseaseSymptomMap(built);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Pre-select symptoms when arriving from Body Atlas via ?disease= query param
   useEffect(() => {
     const disease = searchParams.get("disease")?.toLowerCase() ?? null;
     if (!disease) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPrefillDisease(disease);
-    const preselected = DISEASE_SYMPTOM_MAP[disease];
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    const preselected = diseaseSymptomMap[disease];
     if (preselected) setSelected(new Set(preselected));
-  }, [searchParams]);
+  }, [searchParams, diseaseSymptomMap]);
 
   // Load latest risk event for the Local Threat Alert panel
   useEffect(() => {
