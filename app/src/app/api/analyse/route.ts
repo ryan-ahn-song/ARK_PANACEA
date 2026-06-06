@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
-import { getGrok, GROK_MODEL } from "@/lib/grok";
+import { getGemini, GEMINI_MODEL } from "@/lib/gemini";
 
 const MAX_TOKENS = 320;
 const MAX_BODY_BYTES = 2048;
@@ -129,7 +129,7 @@ function getClientIp(req: NextRequest) {
 }
 
 function hashClientIp(req: NextRequest): string | null {
-  const secret = process.env.RATE_LIMIT_SECRET ?? process.env.GROK_API_KEY;
+  const secret = process.env.RATE_LIMIT_SECRET ?? process.env.GEMINI_API_KEY;
   if (!secret) return null;
 
   return createHash("sha256")
@@ -300,32 +300,36 @@ export async function POST(req: NextRequest) {
 
   const symptomList = symptoms.join(", ");
 
+  const SYSTEM_PROMPT =
+    "You are PANACEA, a clinical AI assistant specializing in infectious disease triage for underserved communities. " +
+    "Respond only with a JSON array of 3 findings. Each finding must have: disease, probability, pct, and desc. " +
+    "Order by descending probability. Never diagnose; frame every result as educational guidance only.";
+
+  const USER_PROMPT =
+    `Symptoms reported as controlled enum values: ${symptomList}. Return JSON only, no extra text.`;
+
   let raw = "";
   try {
-    const completion = await getGrok().chat.completions.create({
-      model: GROK_MODEL,
-      max_tokens: MAX_TOKENS,
-      temperature: 0.2,
-      n: 1,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are PANACEA, a clinical AI assistant specializing in infectious disease triage for underserved communities. " +
-            "Respond only with a JSON array of 3 findings. Each finding must have: disease, probability, pct, and desc. " +
-            "Order by descending probability. Never diagnose; frame every result as educational guidance only.",
-        },
-        {
-          role: "user",
-          content: `Symptoms reported as controlled enum values: ${symptomList}. Return JSON only, no extra text.`,
-        },
-      ],
-    }, {
-      maxRetries: 0,
-      timeout: AI_TIMEOUT_MS,
+    const geminiModel = getGemini().getGenerativeModel({
+      model: GEMINI_MODEL,
+      generationConfig: {
+        maxOutputTokens: MAX_TOKENS,
+        temperature: 0.2,
+        candidateCount: 1,
+      },
+      systemInstruction: SYSTEM_PROMPT,
     });
 
-    raw = completion.choices[0]?.message?.content ?? "";
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("AI_TIMEOUT")), AI_TIMEOUT_MS),
+    );
+
+    const result = await Promise.race([
+      geminiModel.generateContent(USER_PROMPT),
+      timeoutPromise,
+    ]);
+
+    raw = result.response.text();
   } catch (error) {
     console.error("AI analysis upstream failed", error);
     return errorResponse("Analysis service unavailable.", 502);

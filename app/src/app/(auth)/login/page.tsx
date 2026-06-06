@@ -139,7 +139,7 @@ function LoginForm() {
     setLoading(true);
     setError("");
 
-    const { error: err } = await supabase.auth.signInWithPassword({
+    const { error: err, data: authData } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
@@ -154,6 +154,15 @@ function LoginForm() {
       );
       setLoading(false);
       return;
+    }
+
+    // Ensure a profiles row exists for new users (idempotent upsert)
+    if (authData?.user) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("profiles") as any).upsert(
+        { id: authData.user.id, xp: 0, guardian_level: 1 },
+        { onConflict: "id", ignoreDuplicates: true },
+      ).catch(() => { /* silent — RLS may already cover this */ });
     }
 
     router.push("/dashboard");

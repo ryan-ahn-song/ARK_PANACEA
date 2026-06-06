@@ -112,10 +112,10 @@ export default function LandingPage() {
                 tagDesc: "Designed for 100% comprehension across all literacy levels and languages.",
               },
               {
-                label: "The Core", title: "Offline-first AI",
-                body: "Privacy is paramount. This MVP minimizes symptom data, checks access on the server, and keeps the path open for future offline model support.",
-                icon: "cloud_off", tag: "Privacy-Aware Guidance",
-                tagDesc: "Controlled symptom values and protected API access reduce unnecessary exposure.",
+                label: "The Core", title: "Privacy-first AI",
+                body: "Privacy is paramount. Symptoms are submitted as controlled enum values — never free text — to a secured server-side AI that returns educational guidance only.",
+                icon: "shield", tag: "Privacy-Aware Guidance",
+                tagDesc: "Controlled symptom enumerations and rate-limited API access minimise data exposure.",
               },
             ].map((block) => (
               <div key={block.title} className="flex flex-col gap-8">

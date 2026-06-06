@@ -225,14 +225,30 @@ export default function AIGuidancePage() {
               .map((f) => `${f.disease} ${f.pct}`)
               .join(" · ");
 
-            await supabase.from("health_logs").insert({
+            // ── Save to personal health log ─────────────────────────────
+            const { error: logErr } = await supabase.from("health_logs").insert({
               user_id:    user.id,
               event_date: new Date().toISOString().split("T")[0],
               type:       top.disease,
               severity,
               note:       `AI Analysis — ${note}`,
             });
-            setLogSaved(true);
+            if (!logErr) setLogSaved(true);
+
+            // ── Contribute anonymised signal to community heatmap ────────
+            // lat/lng defaults to Nairobi centre until geolocation is added
+            const intensity = Math.min(
+              1,
+              Math.max(0, parseInt(top.pct.replace("%", ""), 10) / 100),
+            );
+            await supabase.from("heatmap_reports").insert({
+              disease_tag:  top.disease.toUpperCase().slice(0, 20),
+              intensity,
+              lat:          -1.2921,
+              lng:          36.8219,
+              neighborhood: "Community Report",
+              reported_at:  new Date().toISOString(),
+            });
           }
         } else {
           setError("Analysis failed. Please try again.");
