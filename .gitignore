@@ -49,4 +49,35 @@ CLAUDE_SECURITY_AUDIT.md
 **/SECURITY_AUDIT.md
 **/SUPABASE_SECURITY_PATCH.sql
 
+# --- certificate & key files ---
+*.key
+*.p12
+*.pfx
+*.secret
+*.secrets
+*.crt
+*.csr
+id_rsa
+id_ed25519
+*.ppk
+
+# --- local database files ---
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Supabase local state ---
+supabase/.branches/
+supabase/.temp/
+supabase/config.toml
+
+# --- Docker overrides (may contain secrets) ---
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# --- editor / IDE ---
+.idea/
+*.iml
+.vscode/settings.json
+
 .vercel
