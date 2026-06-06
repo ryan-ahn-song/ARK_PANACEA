@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import Button from "@/components/ui/Button";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV_LINKS = [
   { label: "Risk",        href: "/dashboard"  },
@@ -15,7 +16,27 @@ const NAV_LINKS = [
 
 export default function TopNav() {
   const pathname   = usePathname();
-  const [open, setOpen] = useState(false);
+  const router     = useRouter();
+  const [open, setOpen]         = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setLoggedIn(!!session);
+    });
+
+    // Keep in sync with sign-in / sign-out events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoggedIn(!!session);
+      if (!session) router.push("/login");
+    });
+
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
@@ -46,9 +67,15 @@ export default function TopNav() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link href="/profile" className="hidden md:block">
-            <Button size="sm">Profile</Button>
-          </Link>
+          {loggedIn ? (
+            <Link href="/profile" className="hidden md:block">
+              <Button size="sm">Profile</Button>
+            </Link>
+          ) : (
+            <Link href="/login" className="hidden md:block">
+              <Button size="sm">Login</Button>
+            </Link>
+          )}
 
           {/* Mobile hamburger */}
           <button
@@ -111,14 +138,25 @@ export default function TopNav() {
               </Link>
             ))}
             <div className="border-t border-[#e8e8e8] mt-3 pt-3">
-              <Link
-                href="/profile"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm text-[#1a1c1c] hover:bg-[#f0f0f0] transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">account_circle</span>
-                Profile
-              </Link>
+              {loggedIn ? (
+                <Link
+                  href="/profile"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm text-[#1a1c1c] hover:bg-[#f0f0f0] transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">account_circle</span>
+                  Profile
+                </Link>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm text-[#1a1c1c] hover:bg-[#f0f0f0] transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">login</span>
+                  Login
+                </Link>
+              )}
             </div>
           </div>
         </div>
