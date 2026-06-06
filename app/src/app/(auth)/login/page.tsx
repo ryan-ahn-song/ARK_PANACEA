@@ -159,8 +159,7 @@ function LoginForm() {
     // Ensure a profiles row exists for new users (idempotent upsert)
     if (authData?.user) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.from("profiles") as any).upsert(
+        await supabase.from("profiles").upsert(
           { id: authData.user.id, xp: 0, guardian_level: 1 },
           { onConflict: "id", ignoreDuplicates: true },
         );
@@ -195,7 +194,8 @@ function LoginForm() {
     });
 
     if (err) {
-      setError(err.message);
+      // Do not expose raw Supabase error strings — they may leak internal details
+      setError("Unable to create account. Please check your email and try again.");
       setLoading(false);
       return;
     }
@@ -219,7 +219,8 @@ function LoginForm() {
     );
 
     if (err) {
-      setError(err.message);
+      // Do not expose raw Supabase error strings — they may leak internal details
+      setError("Unable to send reset link. Please check your email and try again.");
       setLoading(false);
       return;
     }
@@ -287,7 +288,7 @@ function LoginForm() {
         style={{
           background: "radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)",
           filter: "blur(40px)",
-          animation: "float 20s ease-in-out infinite alternate",
+          animation: "float-blob 20s ease-in-out infinite alternate",
         }}
       />
       <div
@@ -295,7 +296,7 @@ function LoginForm() {
         style={{
           background: "radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)",
           filter: "blur(40px)",
-          animation: "float 20s ease-in-out infinite alternate",
+          animation: "float-blob 20s ease-in-out infinite alternate",
           animationDelay: "-5s",
         }}
       />
@@ -479,12 +480,7 @@ function LoginForm() {
         </p>
       </aside>
 
-      <style>{`
-        @keyframes float {
-          0%   { transform: translate(-10%, -10%) scale(1); }
-          100% { transform: translate(10%, 10%) scale(1.1); }
-        }
-      `}</style>
+      {/* Keyframe animations are defined in globals.css */}
     </div>
   );
 }

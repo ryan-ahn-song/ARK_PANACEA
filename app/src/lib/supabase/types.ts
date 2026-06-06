@@ -252,6 +252,24 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_quota_log: {
+        Row: {
+          key:        string
+          window_end: string
+          count:      number
+        }
+        Insert: {
+          key:        string
+          window_end: string
+          count?:     number
+        }
+        Update: {
+          key?:        string
+          window_end?: string
+          count?:      number
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {

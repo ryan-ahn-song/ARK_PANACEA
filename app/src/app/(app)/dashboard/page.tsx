@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { Mission, RiskEvent } from "@/lib/supabase/types";
 
@@ -100,8 +101,7 @@ export default function DashboardPage() {
       if (delErr) { setSavingId(null); return; }
       setCompletedIds((prev) => { const next = new Set(prev); next.delete(missionId); return next; });
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: insErr } = await (supabase.from("user_missions") as any).insert({
+      const { error: insErr } = await supabase.from("user_missions").insert({
         user_id:      userId,
         mission_id:   missionId,
         completed_at: new Date().toISOString(),
@@ -118,13 +118,11 @@ export default function DashboardPage() {
         .select("xp")
         .eq("id", userId)
         .single();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const currentXp = (prof as any)?.xp ?? 0;
+      const currentXp = prof?.xp ?? 0;
       const delta  = wasCompleted ? -(mission.xp_reward ?? 0) : (mission.xp_reward ?? 0);
       const newXp  = Math.max(0, currentXp + delta);
       const newLevel = Math.floor(newXp / 500) + 1;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("profiles") as any).upsert(
+      await supabase.from("profiles").upsert(
         { id: userId, xp: newXp, guardian_level: newLevel },
         { onConflict: "id" },
       );
@@ -267,9 +265,9 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex items-center gap-[3px] opacity-40 group-hover:opacity-100 transition-opacity">
-                {[0, 0.1, 0.2, 0.3].map((delay, i) => (
+                {[0, 0.1, 0.2, 0.3].map((delay) => (
                   <div
-                    key={i}
+                    key={delay}
                     className="w-[3px] rounded-sm bg-black"
                     style={{ height: "8px", animation: "wave 1s ease-in-out infinite", animationDelay: `${delay}s` }}
                   />
@@ -371,11 +369,12 @@ export default function DashboardPage() {
         {/* ── Contextual Insight Section ── */}
         <section className="border-t border-[#cfc4c5] pt-32 flex flex-col md:flex-row gap-8">
           <div className="w-full md:w-2/5 aspect-[4/5] rounded-3xl overflow-hidden bg-[#e8e8e8] relative">
-            <img
+            <Image
               src="https://images.unsplash.com/photo-1559757175-5700dde675bc?w=800&q=80"
               alt="Infection Risk Visual"
-              className="w-full h-full object-cover opacity-80"
-              style={{ filter: "grayscale(1)" }}
+              fill
+              className="object-cover opacity-80 grayscale"
+              sizes="(max-width: 768px) 100vw, 40vw"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-transparent to-transparent" />
           </div>
@@ -408,11 +407,7 @@ export default function DashboardPage() {
         </section>
       </main>
 
-      <style>{`
-        @keyframes pulse-glow  { 0%,100%{transform:scale(1);opacity:.5} 50%{transform:scale(1.15);opacity:.8} }
-        @keyframes rotate-ring { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes wave        { 0%,100%{height:8px} 50%{height:16px} }
-      `}</style>
+      {/* Keyframe animations are defined in globals.css */}
     </div>
   );
 }

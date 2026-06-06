@@ -129,7 +129,9 @@ function getClientIp(req: NextRequest) {
 }
 
 function hashClientIp(req: NextRequest): string | null {
-  const secret = process.env.RATE_LIMIT_SECRET ?? process.env.GEMINI_API_KEY;
+  // RATE_LIMIT_SECRET must be set explicitly — do NOT fall back to GEMINI_API_KEY.
+  // Using an API key as a HMAC salt is bad practice and couples two unrelated secrets.
+  const secret = process.env.RATE_LIMIT_SECRET;
   if (!secret) return null;
 
   return createHash("sha256")
@@ -341,5 +343,10 @@ export async function POST(req: NextRequest) {
     return errorResponse("Analysis response failed validation.", 502);
   }
 
-  return NextResponse.json({ findings });
+  return NextResponse.json({ findings }, {
+    headers: {
+      // OWASP REST: prevent proxies and browsers from caching health analysis responses
+      "Cache-Control": "no-store",
+    },
+  });
 }
