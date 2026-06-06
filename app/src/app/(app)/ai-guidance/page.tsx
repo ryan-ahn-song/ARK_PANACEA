@@ -82,6 +82,16 @@ function pctToSeverity(pct: string): "high" | "medium" | "low" {
   return "low";
 }
 
+// Normalise Gemini disease name → heatmap filter tag
+function normalizeDiseaseTag(disease: string): string {
+  const u = disease.toUpperCase();
+  if (u.includes("MALARIA"))                       return "MALARIA";
+  if (u.includes("DENGUE"))                        return "DENGUE";
+  if (u.includes("TUBERC") || u === "TB")         return "TB";
+  if (u.includes("INFLUEN") || u.includes("FLU") || u.includes("H1N1")) return "INFLUENZA";
+  return u.replace(/[^A-Z0-9]/g, "_").slice(0, 20);
+}
+
 // Color for risk level
 function riskColor(level: string) {
   const l = level.toUpperCase();
@@ -159,12 +169,16 @@ export default function AIGuidancePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Geolocation for heatmap contribution
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
   // Voice state
   const [voiceActive, setVoiceActive]       = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const voiceSupported = Boolean(getSpeechRecognitionConstructor());
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const synthRef       = useRef<SpeechSynthesis | null>(null);
+  const voiceRef       = useRef<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
     const SpeechRecognitionAPI = getSpeechRecognitionConstructor();
@@ -180,9 +194,9 @@ export default function AIGuidancePage() {
           const found = extractSymptoms(transcript);
           if (found.length > 0) {
             setSelected((prev) => new Set([...prev, ...found]));
-            speak(`I detected ${found.join(", ")}. Click Run AI Analysis when ready.`);
+            speak(`Detected: ${found.join(", ")}. Tap Analyse when ready.`);
           } else {
-            speak("I couldn't identify any symptoms. Please try again or select manually.");
+            speak("No symptoms recognised. Please try again or select manually.");
           }
           setVoiceActive(false);
         }
@@ -192,14 +206,40 @@ export default function AIGuidancePage() {
       recognitionRef.current = rec;
     }
     synthRef.current = window.speechSynthesis;
+
+    // Pick the best available English TTS voice
+    const pickVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      voiceRef.current =
+        voices.find((v) => /google.*us.*english/i.test(v.name)) ??
+        voices.find((v) => /google.*english/i.test(v.name)) ??
+        voices.find((v) => v.lang === "en-US" && !v.localService) ??
+        voices.find((v) => v.lang.startsWith("en-US")) ??
+        voices.find((v) => v.lang.startsWith("en")) ??
+        null;
+    };
+    pickVoice();
+    window.speechSynthesis.onvoiceschanged = pickVoice;
+  }, []);
+
+  // Try to get user location for heatmap contribution (silent fail → null)
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { /* silent — fall back to null */ },
+      { timeout: 8_000, enableHighAccuracy: false },
+    );
   }, []);
 
   function speak(text: string) {
     if (!synthRef.current) return;
     synthRef.current.cancel();
     const utt = new SpeechSynthesisUtterance(text);
-    utt.rate  = 0.95;
-    utt.pitch = 1;
+    utt.lang  = "en-US";
+    utt.rate  = 0.92;
+    utt.pitch = 1.0;
+    if (voiceRef.current) utt.voice = voiceRef.current;
     synthRef.current.speak(utt);
   }
 
@@ -259,11 +299,13 @@ export default function AIGuidancePage() {
           // Save to health_logs so Profile page reflects the analysis
           const { data: { user } } = await supabase.auth.getUser();
           if (user && data.findings.length > 0) {
-            const top      = data.findings[0] as Finding;
-            const severity = pctToSeverity(top.pct);
-            const note     = (data.findings as Finding[])
+            const top         = data.findings[0] as Finding;
+            const severity    = pctToSeverity(top.pct);
+            const findingsStr = (data.findings as Finding[])
               .map((f) => `${f.disease} ${f.pct}`)
               .join(" · ");
+            // Include the selected symptoms so Profile can display them
+            const symptomList = Array.from(selected).join(", ");
 
             // ── Save to personal health log ─────────────────────────────
             const { error: logErr } = await supabase.from("health_logs").insert({
@@ -271,21 +313,22 @@ export default function AIGuidancePage() {
               event_date: new Date().toISOString().split("T")[0],
               type:       top.disease,
               severity,
-              note:       `AI Analysis — ${note}`,
+              note:       `Symptoms: ${symptomList} | ${findingsStr}`,
             });
             if (!logErr) setLogSaved(true);
 
             // ── Contribute anonymised signal to community heatmap ────────
-            // lat/lng defaults to Nairobi centre until geolocation is added
             const intensity = Math.min(
               1,
               Math.max(0, parseInt(top.pct.replace("%", ""), 10) / 100),
             );
+            // Use real location if available; blur by ±~200 m for privacy
+            const loc = userLocation ?? { lat: -1.2921, lng: 36.8219 };
             await supabase.from("heatmap_reports").insert({
-              disease_tag:  top.disease.toUpperCase().slice(0, 20),
+              disease_tag:  normalizeDiseaseTag(top.disease),
               intensity,
-              lat:          -1.2921,
-              lng:          36.8219,
+              lat:          loc.lat + (Math.random() - 0.5) * 0.004,
+              lng:          loc.lng + (Math.random() - 0.5) * 0.004,
               neighborhood: "Community Report",
               reported_at:  new Date().toISOString(),
             });
@@ -304,7 +347,7 @@ export default function AIGuidancePage() {
 
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+  }, [selected, userLocation]);
 
   // Risk alert display helpers
   const alertLevel = riskAlert?.level ?? "MEDIUM";
