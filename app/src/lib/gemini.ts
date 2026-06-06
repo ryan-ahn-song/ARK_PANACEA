@@ -1,16 +1,12 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// Gemini SDK integration — placeholder for future use.
+// Current MVP uses Grok (xAI) via src/lib/grok.ts and src/app/api/analyse/route.ts.
+// To enable Gemini: install @google/generative-ai, then swap getGemini() into the analyse route.
 
 export const GEMINI_MODEL = "gemini-2.0-flash";
 
-let _gemini: GoogleGenerativeAI | null = null;
-
-export function getGemini(): GoogleGenerativeAI {
-  if (!_gemini) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is not set");
-    }
-    _gemini = new GoogleGenerativeAI(apiKey);
-  }
-  return _gemini;
+export function getGemini(): never {
+  throw new Error(
+    "Gemini is not enabled in this build. " +
+    "Install @google/generative-ai and update analyse/route.ts to use getGemini().",
+  );
 }

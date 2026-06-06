@@ -65,7 +65,14 @@ export default function ProfilePage() {
         .limit(10);
       if (healthLogs) setLogs(healthLogs);
 
-      // Completed missions with mission details (latest 4 for Guardian Status)
+      // Total completed missions count (all time — used in stats)
+      const { count: missionCount } = await supabase
+        .from("user_missions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      if (missionCount !== null) setTotalMissions(missionCount);
+
+      // Latest 4 completed missions with details (for Guardian Status display)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: umData } = await (supabase as any)
         .from("user_missions")
@@ -75,7 +82,6 @@ export default function ProfilePage() {
         .limit(4);
       if (umData) {
         setCompletedMissions(umData as CompletedMission[]);
-        setTotalMissions((umData as CompletedMission[]).length);
       }
 
       // Activity per weekday — last 7 days of user_missions

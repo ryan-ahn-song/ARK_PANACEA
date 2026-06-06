@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "leaflet/dist/leaflet.css";
 import type { Map as LeafletMap, Circle } from "leaflet";
@@ -126,6 +126,10 @@ export default function HeatmapClient() {
   const [dbLoaded,       setDbLoaded]       = useState(false);
   const [dataLoading,    setDataLoading]    = useState(true);
   const [showContribute, setShowContribute] = useState(false);
+
+  // ── Stable zoom handlers (avoid ref access during render) ────────────────
+  const handleZoomIn  = useCallback(() => { mapRef.current?.zoomIn();  }, []);
+  const handleZoomOut = useCallback(() => { mapRef.current?.zoomOut(); }, []);
 
   // ── Load heatmap_reports from Supabase ────────────────────────────────────
   useEffect(() => {
@@ -363,19 +367,20 @@ export default function HeatmapClient() {
 
       {/* ── Right-center · Zoom controls ─────────────────────────────────── */}
       <div className="absolute right-6 top-1/2 -translate-y-1/2 z-[1001] flex flex-col gap-1">
-        {[
-          { label: "+", action: () => mapRef.current?.zoomIn()  },
-          { label: "−", action: () => mapRef.current?.zoomOut() },
-        ].map(({ label, action }) => (
-          <button
-            key={label}
-            onClick={action}
-            className="w-9 h-9 rounded-xl border border-[#cfc4c5] flex items-center justify-center font-sans font-semibold text-lg hover:bg-white transition-all"
-            style={GLASS}
-          >
-            {label}
-          </button>
-        ))}
+        <button
+          onClick={handleZoomIn}
+          className="w-9 h-9 rounded-xl border border-[#cfc4c5] flex items-center justify-center font-sans font-semibold text-lg hover:bg-white transition-all"
+          style={GLASS}
+        >
+          +
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="w-9 h-9 rounded-xl border border-[#cfc4c5] flex items-center justify-center font-sans font-semibold text-lg hover:bg-white transition-all"
+          style={GLASS}
+        >
+          −
+        </button>
       </div>
 
       {/* ── Bottom-left · Neighborhood trends (live from DB) ─────────────── */}
