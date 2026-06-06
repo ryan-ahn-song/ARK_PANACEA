@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+﻿import type { NextConfig } from "next";
 
 const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
@@ -8,7 +8,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(self), geolocation=(), browsing-topics=()",
+    value: "camera=(), microphone=(self), geolocation=(self), browsing-topics=()",
   },
   {
     key: "Content-Security-Policy",

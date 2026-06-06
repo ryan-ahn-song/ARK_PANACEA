@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Mission } from "@/lib/supabase/types";
 
@@ -11,6 +11,21 @@ const REWARDS = [
   { icon: "clean_hands",   title: "Antiseptic Soap",   sub: "3 Units Available",        code: "PAN-AS-103",  xpRequired: 200 },
   { icon: "medication",    title: "Essential Medicine", sub: "Claim at Local Clinic",    code: "PAN-EM-881",  xpRequired: 400 },
 ];
+
+/** Format seconds until midnight as "Xh Ym Zs" */
+function formatCountdown(secondsLeft: number): string {
+  const h = Math.floor(secondsLeft / 3600);
+  const m = Math.floor((secondsLeft % 3600) / 60);
+  const s = secondsLeft % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+}
+
+function secondsUntilMidnight(): number {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return Math.max(0, Math.floor((midnight.getTime() - now.getTime()) / 1000));
+}
 
 export default function GuardianPage() {
   const supabase = createClient();
@@ -24,7 +39,22 @@ export default function GuardianPage() {
   const [showRedeem,     setShowRedeem]     = useState(false);
   const [copySuccess,    setCopySuccess]    = useState<string | null>(null);
 
-  // ── Load missions + completed state + XP ──────────────────────────────────
+  // ── Item 5: Redeemed codes from DB ─────────────────────────────────────────
+  const [redeemedCodes,  setRedeemedCodes]  = useState<Set<string>>(new Set());
+  const [redeemSaving,   setRedeemSaving]   = useState<string | null>(null);
+
+  // ── Item 6: Countdown to midnight ──────────────────────────────────────────
+  const [countdown,      setCountdown]      = useState(() => formatCountdown(secondsUntilMidnight()));
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setCountdown(formatCountdown(secondsUntilMidnight()));
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  // ── Load missions + completed state + XP + redeemed codes ─────────────────
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -60,6 +90,15 @@ export default function GuardianPage() {
           (sum, um) => sum + (um.missions?.xp_reward ?? 0), 0,
         );
         setBaseXp(total);
+      }
+
+      // ── Item 5: load redeemed codes ──
+      const { data: redemptions } = await supabase
+        .from("reward_redemptions")
+        .select("reward_code")
+        .eq("user_id", user.id);
+      if (redemptions) {
+        setRedeemedCodes(new Set(redemptions.map((r) => r.reward_code)));
       }
     }
     load();
@@ -112,16 +151,40 @@ export default function GuardianPage() {
     setSavingId(null);
   }
 
-  // ── Copy voucher code to clipboard ────────────────────────────────────────
-  async function copyCode(code: string, title: string) {
+  // ── Item 5: Copy voucher code + record redemption in DB ────────────────────
+  async function copyCode(code: string) {
+    if (!userId) return;
     try {
       await navigator.clipboard.writeText(code);
-      setCopySuccess(code);
-      showToast(`Copied: ${code}`);
-      setTimeout(() => setCopySuccess(null), 2000);
     } catch {
-      showToast(`Code: ${code}`); // fallback if clipboard blocked
+      // clipboard blocked — proceed anyway
     }
+    setCopySuccess(code);
+    setTimeout(() => setCopySuccess(null), 2000);
+
+    // Already redeemed → no duplicate insert
+    if (redeemedCodes.has(code)) {
+      showToast(`Code: ${code}`);
+      return;
+    }
+
+    setRedeemSaving(code);
+    const { error } = await supabase.from("reward_redemptions").insert({
+      user_id:     userId,
+      reward_code: code,
+      redeemed_at: new Date().toISOString(),
+    });
+    if (!error) {
+      setRedeemedCodes((prev) => new Set([...prev, code]));
+      showToast(`Redeemed: ${code}`);
+    } else {
+      // Duplicate (unique constraint) — mark redeemed silently
+      if (error.code === "23505") {
+        setRedeemedCodes((prev) => new Set([...prev, code]));
+      }
+      showToast(`Code: ${code}`);
+    }
+    setRedeemSaving(null);
   }
 
   // ── Redeem all unlocked vouchers ──────────────────────────────────────────
@@ -173,7 +236,9 @@ export default function GuardianPage() {
 
             <div className="space-y-4 mb-8">
               {REWARDS.map((r) => {
-                const unlocked = xpTotal >= r.xpRequired;
+                const unlocked  = xpTotal >= r.xpRequired;
+                const redeemed  = redeemedCodes.has(r.code);
+                const isSaving  = redeemSaving === r.code;
                 return (
                   <div
                     key={r.code}
@@ -192,17 +257,20 @@ export default function GuardianPage() {
                     </div>
                     {unlocked && (
                       <button
-                        onClick={() => copyCode(r.code, r.title)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border font-sans text-[10px] font-semibold tracking-widest uppercase transition-all ${
-                          copySuccess === r.code
+                        onClick={() => copyCode(r.code)}
+                        disabled={isSaving}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border font-sans text-[10px] font-semibold tracking-widest uppercase transition-all disabled:opacity-50 ${
+                          redeemed
                             ? "bg-[#50a14f] border-[#50a14f] text-white"
-                            : "border-black hover:bg-black hover:text-white"
+                            : copySuccess === r.code
+                              ? "bg-[#50a14f] border-[#50a14f] text-white"
+                              : "border-black hover:bg-black hover:text-white"
                         }`}
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: "12px", fontVariationSettings: "'FILL' 1" }}>
-                          {copySuccess === r.code ? "check" : "content_copy"}
+                          {redeemed || copySuccess === r.code ? "check" : "content_copy"}
                         </span>
-                        {copySuccess === r.code ? "Copied" : "Copy"}
+                        {redeemed ? "Redeemed" : copySuccess === r.code ? "Copied" : "Copy"}
                       </button>
                     )}
                   </div>
@@ -338,12 +406,15 @@ export default function GuardianPage() {
                   );
                 })}
 
-                {/* Locked placeholder */}
+                {/* ── Item 6: Live countdown to midnight instead of placeholder ── */}
                 <div className="border-t border-[#cfc4c5] p-8 flex items-center gap-4 text-[#5e5e5e]">
-                  <span className="material-symbols-outlined">lock</span>
-                  <p className="font-sans text-xs font-semibold tracking-[0.2em] uppercase">
-                    New Missions Unlock Tomorrow
-                  </p>
+                  <span className="material-symbols-outlined">schedule</span>
+                  <div>
+                    <p className="font-sans text-xs font-semibold tracking-[0.2em] uppercase">
+                      New Missions Unlock In
+                    </p>
+                    <p className="font-mono text-sm text-black mt-0.5">{countdown}</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -362,7 +433,8 @@ export default function GuardianPage() {
 
                 <div className="space-y-8">
                   {REWARDS.map((r, i) => {
-                    const unlocked = xpTotal >= r.xpRequired;
+                    const unlocked  = xpTotal >= r.xpRequired;
+                    const redeemed  = redeemedCodes.has(r.code);
                     return (
                       <div key={r.title}>
                         <div
@@ -371,7 +443,7 @@ export default function GuardianPage() {
                           } ${!unlocked ? "opacity-40" : ""}`}
                           onClick={() => {
                             if (unlocked) {
-                              copyCode(r.code, r.title);
+                              copyCode(r.code);
                             } else {
                               showToast(`Requires ${r.xpRequired} XP to unlock`);
                             }
@@ -385,15 +457,17 @@ export default function GuardianPage() {
                               <p className="font-serif font-medium text-[18px]">{r.title}</p>
                               <p className="text-[#848484] text-xs">
                                 {unlocked
-                                  ? copySuccess === r.code
-                                    ? "✓ Copied to clipboard"
-                                    : r.sub
+                                  ? redeemed
+                                    ? "✓ Redeemed"
+                                    : copySuccess === r.code
+                                      ? "✓ Copied to clipboard"
+                                      : r.sub
                                   : `Requires ${r.xpRequired} XP`}
                               </p>
                             </div>
                           </div>
                           <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                            {unlocked ? "content_copy" : "lock"}
+                            {unlocked ? (redeemed ? "check_circle" : "content_copy") : "lock"}
                           </span>
                         </div>
                         {i < REWARDS.length - 1 && (
@@ -440,7 +514,7 @@ export default function GuardianPage() {
         <div className="max-w-[1200px] mx-auto px-16 flex flex-col md:flex-row justify-between items-center gap-8">
           <span className="font-sans font-semibold text-lg tracking-widest uppercase text-black">PANACEA</span>
           <p className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e]">
-            © 2025 PANACEA INFECTIOUS DISEASE INSTITUTE.
+            © 2026 PANACEA INFECTIOUS DISEASE INSTITUTE.
           </p>
           <div className="flex gap-8">
             {[

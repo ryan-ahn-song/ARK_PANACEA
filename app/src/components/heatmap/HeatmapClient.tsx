@@ -7,36 +7,44 @@ import type { Map as LeafletMap, Circle } from "leaflet";
 import { createClient } from "@/lib/supabase/client";
 import type { HeatmapReport } from "@/lib/supabase/types";
 
-type Filter = "ALL" | "MALARIA" | "DENGUE" | "TB";
+// ── Item 12: INFLUENZA added to Filter type ──────────────────────────────────
+type Filter = "ALL" | "MALARIA" | "DENGUE" | "TB" | "INFLUENZA";
 type Hotspot = { lat: number; lng: number; intensity: number; tag: Filter };
 
 // ── Fallback data used while DB loads or if table is empty ──────────────────
 const FALLBACK_HOTSPOTS: Hotspot[] = [
-  { lat: -1.2921, lng: 36.8219, intensity: 0.9,  tag: "MALARIA" },
-  { lat: -1.2634, lng: 36.7943, intensity: 0.6,  tag: "MALARIA" },
-  { lat: -1.3032, lng: 36.8123, intensity: 0.4,  tag: "DENGUE"  },
-  { lat: -1.2100, lng: 36.8850, intensity: 0.75, tag: "DENGUE"  },
-  { lat: -1.3200, lng: 36.7200, intensity: 0.3,  tag: "TB"      },
-  { lat: -1.2800, lng: 36.7600, intensity: 0.5,  tag: "TB"      },
-  { lat: -1.2450, lng: 36.8600, intensity: 0.65, tag: "MALARIA" },
+  { lat: -1.2921, lng: 36.8219, intensity: 0.9,  tag: "MALARIA"   },
+  { lat: -1.2634, lng: 36.7943, intensity: 0.6,  tag: "MALARIA"   },
+  { lat: -1.3032, lng: 36.8123, intensity: 0.4,  tag: "DENGUE"    },
+  { lat: -1.2100, lng: 36.8850, intensity: 0.75, tag: "DENGUE"    },
+  { lat: -1.3200, lng: 36.7200, intensity: 0.3,  tag: "TB"        },
+  { lat: -1.2800, lng: 36.7600, intensity: 0.5,  tag: "TB"        },
+  { lat: -1.2450, lng: 36.8600, intensity: 0.55, tag: "INFLUENZA" },
+  { lat: -1.2700, lng: 36.8100, intensity: 0.4,  tag: "INFLUENZA" },
 ];
 
 const FALLBACK_NEIGHBORHOODS = [
-  { num: "01", name: "Upper Hill District", trend: "Rising +12%", icon: "trending_up",   color: "#ba1a1a", filter: "MALARIA" as Filter },
-  { num: "02", name: "Westlands Core",       trend: "Stable",      icon: "trending_flat", color: "#50a14f", filter: "ALL"     as Filter },
-  { num: "03", name: "Kilimani Sector",      trend: "Rising +4%",  icon: "trending_up",   color: "#ba1a1a", filter: "DENGUE"  as Filter },
-  { num: "04", name: "Karen Enclave",        trend: "Low Data",    icon: "remove",        color: "#5e5e5e", filter: "TB"      as Filter },
+  { num: "01", name: "Upper Hill District", trend: "Rising +12%", icon: "trending_up",   color: "#ba1a1a", filter: "MALARIA"   as Filter },
+  { num: "02", name: "Westlands Core",       trend: "Stable",      icon: "trending_flat", color: "#50a14f", filter: "ALL"       as Filter },
+  { num: "03", name: "Kilimani Sector",      trend: "Rising +4%",  icon: "trending_up",   color: "#ba1a1a", filter: "DENGUE"    as Filter },
+  { num: "04", name: "Nairobi CBD",          trend: "Rising +6%",  icon: "trending_up",   color: "#c85e17", filter: "INFLUENZA" as Filter },
+  { num: "05", name: "Karen Enclave",        trend: "Low Data",    icon: "remove",        color: "#5e5e5e", filter: "TB"        as Filter },
 ];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+// Item 12: INFLUENZA added to TAG_COLORS
 const TAG_COLORS: Record<Filter, string> = {
-  ALL: "#000", MALARIA: "#50a14f", DENGUE: "#986801", TB: "#a626a4",
+  ALL:       "#000",
+  MALARIA:   "#50a14f",
+  DENGUE:    "#986801",
+  TB:        "#a626a4",
+  INFLUENZA: "#c85e17",
 };
 
 /** Normalize a DB disease_tag string to the Filter union */
 function toFilter(tag: string | null | undefined): Filter {
   const u = tag?.toUpperCase() ?? "";
-  if (u === "MALARIA" || u === "DENGUE" || u === "TB") return u as Filter;
+  if (u === "MALARIA" || u === "DENGUE" || u === "TB" || u === "INFLUENZA") return u as Filter;
   return "ALL";
 }
 
@@ -84,6 +92,15 @@ function calcMetrics(filter: Filter, reports: HeatmapReport[]) {
   };
 }
 
+// Item 12: INFLUENZA added to fallback metrics map
+const FALLBACK_METRICS: Record<Filter, { participants: string; incidence: string; incColor: string }> = {
+  ALL:       { participants: "12,482", incidence: "LOW",    incColor: "#50a14f" },
+  MALARIA:   { participants: "4,230",  incidence: "MEDIUM", incColor: "#986801" },
+  DENGUE:    { participants: "3,910",  incidence: "LOW",    incColor: "#50a14f" },
+  TB:        { participants: "2,180",  incidence: "LOW",    incColor: "#50a14f" },
+  INFLUENZA: { participants: "1,960",  incidence: "MEDIUM", incColor: "#986801" },
+};
+
 function renderMarkers(
   L: typeof import("leaflet"),
   map: LeafletMap,
@@ -126,6 +143,9 @@ export default function HeatmapClient() {
   const [dbLoaded,       setDbLoaded]       = useState(false);
   const [dataLoading,    setDataLoading]    = useState(true);
   const [showContribute, setShowContribute] = useState(false);
+
+  // ── Item 11: geolocation state ────────────────────────────────────────────
+  const [geoStatus, setGeoStatus] = useState<"idle" | "granted" | "denied">("idle");
 
   // ── Stable zoom handlers (avoid ref access during render) ────────────────
   const handleZoomIn  = useCallback(() => { mapRef.current?.zoomIn();  }, []);
@@ -170,12 +190,7 @@ export default function HeatmapClient() {
     () =>
       dbLoaded
         ? calcMetrics(activeFilter, reports)
-        : {
-            ALL:     { participants: "12,482", incidence: "LOW",    incColor: "#50a14f" },
-            MALARIA: { participants: "4,230",  incidence: "MEDIUM", incColor: "#986801" },
-            DENGUE:  { participants: "3,910",  incidence: "LOW",    incColor: "#50a14f" },
-            TB:      { participants: "2,180",  incidence: "LOW",    incColor: "#50a14f" },
-          }[activeFilter],
+        : FALLBACK_METRICS[activeFilter],
     [dbLoaded, reports, activeFilter],
   );
 
@@ -212,11 +227,38 @@ export default function HeatmapClient() {
     })();
   }, [activeFilter, hotspots]);
 
+  // ── Item 11: Geolocation — pan map to user's position ────────────────────
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoStatus("granted");
+        // Pan map to user's location if map is ready; retry if not yet mounted
+        const pan = () => {
+          if (mapRef.current) {
+            mapRef.current.setView([pos.coords.latitude, pos.coords.longitude], 12);
+          } else {
+            setTimeout(pan, 300);
+          }
+        };
+        pan();
+      },
+      () => {
+        // Permission denied or unavailable — keep Nairobi default
+        setGeoStatus("denied");
+      },
+      { timeout: 8000, maximumAge: 60000 },
+    );
+  }, []);
+
   // ── Filtered neighborhood list ────────────────────────────────────────────
   const visibleNeighborhoods =
     activeFilter === "ALL"
       ? neighborhoods
       : neighborhoods.filter((n) => n.filter === activeFilter || n.filter === "ALL");
+
+  // ── Item 12: All filter tags in order ─────────────────────────────────────
+  const FILTER_TAGS: Filter[] = ["ALL", "MALARIA", "DENGUE", "INFLUENZA", "TB"];
 
   return (
     <div className="relative h-[calc(100vh-3.5rem)] overflow-hidden bg-[#f3f3f4]">
@@ -320,8 +362,20 @@ export default function HeatmapClient() {
           <p className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e]">
             {dbLoaded ? "Live Monitoring" : "Offline Data"}
           </p>
+          {/* Item 11: geolocation indicator */}
+          {geoStatus === "granted" && (
+            <span
+              className="material-symbols-outlined text-[#50a14f] ml-auto"
+              style={{ fontSize: "14px", fontVariationSettings: "'FILL' 1" }}
+              title="Location granted — map centred on you"
+            >
+              my_location
+            </span>
+          )}
         </div>
-        <h1 className="font-serif text-2xl font-semibold mb-2">Nairobi Activity</h1>
+        <h1 className="font-serif text-2xl font-semibold mb-2">
+          {geoStatus === "granted" ? "Your Area" : "Nairobi Activity"}
+        </h1>
         <p className="font-sans text-xs text-[#4c4546] leading-relaxed">
           {dbLoaded
             ? `${hotspots.length} active report${hotspots.length !== 1 ? "s" : ""} across ${neighborhoods.length} zone${neighborhoods.length !== 1 ? "s" : ""}. All data is end-to-end encrypted and spatially blurred.`
@@ -334,7 +388,8 @@ export default function HeatmapClient() {
         className="absolute top-6 left-1/2 -translate-x-1/2 z-[1001] flex items-center gap-2 px-4 py-3 rounded-full border border-[#cfc4c5]"
         style={GLASS}
       >
-        {(["ALL", "MALARIA", "DENGUE", "TB"] as Filter[]).map((f) => (
+        {/* Item 12: iterate over FILTER_TAGS which includes INFLUENZA */}
+        {FILTER_TAGS.map((f) => (
           <button
             key={f}
             onClick={() => setActiveFilter(f)}
@@ -365,7 +420,7 @@ export default function HeatmapClient() {
         </div>
       </div>
 
-      {/* ── Right-center · Zoom controls ─────────────────────────────────── */}
+      {/* ── Right-center · Zoom controls + geolocation button ───────────── */}
       <div className="absolute right-6 top-1/2 -translate-y-1/2 z-[1001] flex flex-col gap-1">
         <button
           onClick={handleZoomIn}
@@ -381,6 +436,23 @@ export default function HeatmapClient() {
         >
           −
         </button>
+        {/* Item 11: Re-center to user's location (if already granted) */}
+        {geoStatus === "granted" && (
+          <button
+            onClick={() => {
+              navigator.geolocation.getCurrentPosition((pos) => {
+                mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 13);
+              });
+            }}
+            title="Centre on my location"
+            className="w-9 h-9 rounded-xl border border-[#cfc4c5] flex items-center justify-center hover:bg-white transition-all"
+            style={GLASS}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: "16px", fontVariationSettings: "'FILL' 1" }}>
+              my_location
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── Bottom-left · Neighborhood trends (live from DB) ─────────────── */}

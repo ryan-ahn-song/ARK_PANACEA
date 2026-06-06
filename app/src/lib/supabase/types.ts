@@ -207,6 +207,27 @@ export type Database = {
         }
         Relationships: []
       }
+      reward_redemptions: {
+        Row: {
+          id:          string
+          user_id:     string | null
+          reward_code: string
+          redeemed_at: string | null
+        }
+        Insert: {
+          id?:          string
+          user_id?:     string | null
+          reward_code:  string
+          redeemed_at?: string | null
+        }
+        Update: {
+          id?:          string
+          user_id?:     string | null
+          reward_code?: string
+          redeemed_at?: string | null
+        }
+        Relationships: []
+      }
       user_missions: {
         Row: {
           completed_at: string | null
@@ -257,4 +278,5 @@ export type RiskEvent     = Database["public"]["Tables"]["risk_events"]["Row"];
 export type Mission       = Database["public"]["Tables"]["missions"]["Row"];
 export type UserMission   = Database["public"]["Tables"]["user_missions"]["Row"];
 export type Pathology     = Database["public"]["Tables"]["pathologies"]["Row"];
-export type HeatmapReport = Database["public"]["Tables"]["heatmap_reports"]["Row"];
+export type HeatmapReport       = Database["public"]["Tables"]["heatmap_reports"]["Row"];
+export type RewardRedemption    = Database["public"]["Tables"]["reward_redemptions"]["Row"];
