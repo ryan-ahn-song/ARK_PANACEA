@@ -624,26 +624,49 @@ export default function AIGuidancePage() {
                       ))}
                     </div>
 
-                    {/* Log saved confirmation */}
+                    {/* Log + heatmap saved confirmation */}
                     {logSaved && (
-                      <div className="mt-6 flex items-center gap-2 px-4 py-3 bg-[#f0fff4] border border-[#b7e4c7] rounded-xl">
-                        <span className="material-symbols-outlined text-[#50a14f] text-[16px]"
-                          style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                        <p className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#50a14f]">
-                          Saved to Health Log
-                        </p>
+                      <div className="mt-6 space-y-2">
+                        <div className="flex items-center gap-2 px-4 py-3 bg-[#f0fff4] border border-[#b7e4c7] rounded-xl">
+                          <span className="material-symbols-outlined text-[#50a14f] text-[16px]"
+                            style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                          <p className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#50a14f]">
+                            Saved to Health Log
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-3 bg-[#f0f4ff] border border-[#c6d4f5] rounded-xl">
+                          <span className="material-symbols-outlined text-[#4078f2] text-[16px]"
+                            style={{ fontVariationSettings: "'FILL' 1" }}>map</span>
+                          <p className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#4078f2]">
+                            Contributed to Community Heatmap
+                          </p>
+                        </div>
                       </div>
                     )}
 
-                    <div className="mt-8 space-y-4">
+                    <div className="mt-8 space-y-3">
                       <button
                         onClick={() => router.push("/profile")}
                         className="w-full py-4 bg-black text-white rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#1b1b1b] transition-colors active:scale-95">
                         View Health Profile
                       </button>
                       <button
+                        onClick={() => router.push("/heatmap")}
+                        className="w-full py-3 border border-black text-black rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:bg-black hover:text-white transition-all flex items-center justify-center gap-2">
+                        <span className="material-symbols-outlined text-[14px]">map</span>
+                        See Community Heatmap
+                      </button>
+                      {results && results[0] && (
+                        <button
+                          onClick={() => router.push(`/body-atlas?disease=${encodeURIComponent(results![0].disease.toLowerCase())}`)}
+                          className="w-full py-3 border border-[#cfc4c5] text-[#5e5e5e] rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:border-black hover:text-black transition-all flex items-center justify-center gap-2">
+                          <span className="material-symbols-outlined text-[14px]">accessibility</span>
+                          View Body Atlas
+                        </button>
+                      )}
+                      <button
                         onClick={() => setShowSpecialistModal(true)}
-                        className="w-full py-4 border border-black text-black rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:bg-black hover:text-white transition-all">
+                        className="w-full py-3 text-[#5e5e5e] rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:text-black transition-all">
                         Consult On-Call Specialist
                       </button>
                     </div>
