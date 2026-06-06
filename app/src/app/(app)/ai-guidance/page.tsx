@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { RiskEvent } from "@/lib/supabase/types";
@@ -101,6 +101,14 @@ function riskColor(level: string) {
 }
 
 export default function AIGuidancePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f9f9f9]" />}>
+      <AIGuidanceInner />
+    </Suspense>
+  );
+}
+
+function AIGuidanceInner() {
   const router        = useRouter();
   const searchParams  = useSearchParams();
   const supabase      = createClient();
