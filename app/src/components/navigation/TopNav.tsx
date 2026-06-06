@@ -28,10 +28,12 @@ export default function TopNav() {
       setLoggedIn(!!session);
     });
 
-    // Keep in sync with sign-in / sign-out events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Keep in sync with sign-in / sign-out events.
+    // Only redirect to /login on an explicit SIGNED_OUT event — not on initial
+    // session check, so unauthenticated users can still view public pages (landing, etc.).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setLoggedIn(!!session);
-      if (!session) router.push("/login");
+      if (event === "SIGNED_OUT") router.push("/login");
     });
 
     return () => subscription.unsubscribe();
