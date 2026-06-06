@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import favicon from "./favicon.png";
 
 export const metadata: Metadata = {
   title: "PANACEA | Healthcare Beyond Words",
   description:
     "A digital health platform designed to prevent infectious diseases. Prevent, Protect, Empower.",
+  icons: {
+    icon: favicon.src,
+    shortcut: favicon.src,
+    apple: favicon.src,
+  },
 };
 
 export default function RootLayout({
