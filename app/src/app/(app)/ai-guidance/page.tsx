@@ -672,31 +672,6 @@ export default function AIGuidancePage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full py-32 bg-white border-t border-[#cfc4c5] mt-32">
-        <div className="max-w-[1200px] mx-auto px-16 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="font-serif font-medium text-2xl text-black">PANACEA</div>
-          <nav className="flex gap-8">
-            {[
-              { label: "Privacy Policy",  href: "/legal#privacy-commitment" },
-              { label: "Terms of Use",    href: "/legal#terms-acceptance"   },
-              { label: "Research Papers", href: "https://github.com/Quackk08/ARK_PANACEA" },
-              { label: "Contact",         href: "/legal#privacy-contact"    },
-            ].map(({ label, href }) => (
-              <a key={label} href={href}
-                target={href.startsWith("http") ? "_blank" : undefined}
-                rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-                className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e] hover:text-black transition-colors">
-                {label}
-              </a>
-            ))}
-          </nav>
-          <div className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e]">
-            © 2025 PANACEA INFECTIOUS DISEASE INSTITUTE.
-          </div>
-        </div>
-      </footer>
-
       <style>{`
         @keyframes drift { from{transform:translate(0,0) scale(1)} to{transform:translate(20px,15px) scale(1.1)} }
       `}</style>

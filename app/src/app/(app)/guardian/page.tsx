@@ -509,28 +509,6 @@ export default function GuardianPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full py-32 bg-white border-t border-[#cfc4c5] mt-32 relative z-10">
-        <div className="max-w-[1200px] mx-auto px-16 flex flex-col md:flex-row justify-between items-center gap-8">
-          <span className="font-sans font-semibold text-lg tracking-widest uppercase text-black">PANACEA</span>
-          <p className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e]">
-            © 2026 PANACEA INFECTIOUS DISEASE INSTITUTE.
-          </p>
-          <div className="flex gap-8">
-            {[
-              { label: "Privacy Policy", href: "/legal#privacy-commitment" },
-              { label: "Terms of Use",   href: "/legal#terms-acceptance"   },
-              { label: "Contact",        href: "/legal#privacy-contact"    },
-            ].map(({ label, href }) => (
-              <a key={label} href={href}
-                className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e] hover:text-black transition-colors">
-                {label}
-              </a>
-            ))}
-          </div>
-        </div>
-      </footer>
-
       <style>{`
         @keyframes move {
           from { transform: translate(-10%, -10%) scale(1); }
