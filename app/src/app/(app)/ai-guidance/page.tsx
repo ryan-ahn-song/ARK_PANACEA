@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { RiskEvent } from "@/lib/supabase/types";
 
 type Symptom = { id: string; icon: string; label: string; keywords: string[] };
 type SpeechRecognitionResultLike = {
@@ -28,12 +30,12 @@ type SpeechWindow = Window & {
 };
 
 const SYMPTOMS: Symptom[] = [
-  { id: "fever", icon: "thermostat", label: "Fever", keywords: ["fever", "hot", "temperature", "burning", "열"] },
-  { id: "cough", icon: "air", label: "Cough", keywords: ["cough", "coughing", "throat", "기침"] },
-  { id: "fatigue", icon: "bed", label: "Fatigue", keywords: ["tired", "fatigue", "weak", "exhausted", "피로"] },
-  { id: "chills", icon: "waves", label: "Chills", keywords: ["chills", "shiver", "cold", "오한"] },
-  { id: "headache", icon: "psychology", label: "Headache", keywords: ["headache", "head", "pain", "두통"] },
-  { id: "other", icon: "add", label: "Other", keywords: ["pain", "ache", "sick", "nausea", "vomit"] },
+  { id: "fever",    icon: "thermostat", label: "Fever",    keywords: ["fever", "hot", "temperature", "burning"] },
+  { id: "cough",    icon: "air",        label: "Cough",    keywords: ["cough", "coughing", "throat"] },
+  { id: "fatigue",  icon: "bed",        label: "Fatigue",  keywords: ["tired", "fatigue", "weak", "exhausted"] },
+  { id: "chills",   icon: "waves",      label: "Chills",   keywords: ["chills", "shiver", "cold"] },
+  { id: "headache", icon: "psychology", label: "Headache", keywords: ["headache", "head", "pain"] },
+  { id: "other",    icon: "add",        label: "Other",    keywords: ["pain", "ache", "sick", "nausea", "vomit"] },
 ];
 
 type Finding = { disease: string; probability: string; pct: string; desc: string };
@@ -49,28 +51,86 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | undef
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
 }
 
+// Maps a disease name (lowercase) from Body Atlas to relevant symptom IDs
+const DISEASE_SYMPTOM_MAP: Record<string, string[]> = {
+  malaria:   ["fever", "chills", "headache", "fatigue"],
+  influenza: ["fever", "cough", "headache"],
+  dengue:    ["fever", "headache", "other"],
+  tb:        ["cough", "fatigue"],
+};
+
+// Derive severity from the top finding's probability string e.g. "72%"
+function pctToSeverity(pct: string): "high" | "medium" | "low" {
+  const n = parseInt(pct.replace("%", ""), 10);
+  if (isNaN(n)) return "medium";
+  if (n >= 70) return "high";
+  if (n >= 40) return "medium";
+  return "low";
+}
+
+// Color for risk level
+function riskColor(level: string) {
+  const l = level.toUpperCase();
+  if (l === "LOW") return "#50a14f";
+  if (l === "MEDIUM" || l === "MODERATE") return "#986801";
+  return "#ba1a1a";
+}
+
 export default function AIGuidancePage() {
-  const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<Finding[] | null>(null);
-  const [error, setError] = useState("");
+  const router        = useRouter();
+  const searchParams  = useSearchParams();
+  const supabase      = createClient();
+
+  const [selected, setSelected]           = useState<Set<string>>(new Set());
+  const [prefillDisease, setPrefillDisease] = useState<string | null>(null);
+  const [loading, setLoading]             = useState(false);
+  const [results, setResults]             = useState<Finding[] | null>(null);
+  const [logSaved, setLogSaved]           = useState(false);
+  const [error, setError]                 = useState("");
   const [showSpecialistModal, setShowSpecialistModal] = useState(false);
 
+  // Risk alert from DB
+  const [riskAlert, setRiskAlert]         = useState<RiskEvent | null>(null);
+  const [alertLoading, setAlertLoading]   = useState(true);
+
+  // Pre-select symptoms when arriving from Body Atlas via ?disease= query param
+  useEffect(() => {
+    const disease = searchParams.get("disease")?.toLowerCase() ?? null;
+    if (!disease) return;
+    setPrefillDisease(disease);
+    const preselected = DISEASE_SYMPTOM_MAP[disease];
+    if (preselected) setSelected(new Set(preselected));
+  }, [searchParams]);
+
+  // Load latest risk event for the Local Threat Alert panel
+  useEffect(() => {
+    supabase
+      .from("risk_events")
+      .select("*")
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        setRiskAlert(data ?? null);
+        setAlertLoading(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Voice state
-  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceActive, setVoiceActive]       = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const voiceSupported = Boolean(getSpeechRecognitionConstructor());
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const synthRef       = useRef<SpeechSynthesis | null>(null);
 
   useEffect(() => {
     const SpeechRecognitionAPI = getSpeechRecognitionConstructor();
     if (SpeechRecognitionAPI) {
       const rec = new SpeechRecognitionAPI();
-      rec.continuous = false;
+      rec.continuous     = false;
       rec.interimResults = true;
-      rec.lang = "en-US";
+      rec.lang           = "en-US";
       rec.onresult = (e) => {
         const transcript = Array.from(e.results, (result) => result[0]?.transcript ?? "").join(" ");
         setVoiceTranscript(transcript);
@@ -86,7 +146,7 @@ export default function AIGuidancePage() {
         }
       };
       rec.onerror = () => { setVoiceActive(false); };
-      rec.onend = () => { setVoiceActive(false); };
+      rec.onend   = () => { setVoiceActive(false); };
       recognitionRef.current = rec;
     }
     synthRef.current = window.speechSynthesis;
@@ -96,7 +156,7 @@ export default function AIGuidancePage() {
     if (!synthRef.current) return;
     synthRef.current.cancel();
     const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = 0.95;
+    utt.rate  = 0.95;
     utt.pitch = 1;
     synthRef.current.speak(utt);
   }
@@ -120,14 +180,12 @@ export default function AIGuidancePage() {
   function toggleSymptom(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
     setResults(null);
+    setLogSaved(false);
     setError("");
   }
 
@@ -136,6 +194,7 @@ export default function AIGuidancePage() {
     setLoading(true);
     setError("");
     setResults(null);
+    setLogSaved(false);
 
     try {
       const res = await fetch("/api/analyse", {
@@ -143,14 +202,35 @@ export default function AIGuidancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symptoms: Array.from(selected) }),
       });
+
       if (res.ok) {
         const data = await res.json();
         if (data.findings) {
           setResults(data.findings);
-          // 결과를 음성으로 읽기
+
+          // Read top result aloud
           if (data.findings.length > 0) {
             const top = data.findings[0];
             speak(`Analysis complete. Top match: ${top.disease} at ${top.pct} probability.`);
+          }
+
+          // Save to health_logs so Profile page reflects the analysis
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && data.findings.length > 0) {
+            const top      = data.findings[0] as Finding;
+            const severity = pctToSeverity(top.pct);
+            const note     = (data.findings as Finding[])
+              .map((f) => `${f.disease} ${f.pct}`)
+              .join(" · ");
+
+            await supabase.from("health_logs").insert({
+              user_id:    user.id,
+              event_date: new Date().toISOString().split("T")[0],
+              type:       top.disease,
+              severity,
+              note:       `AI Analysis — ${note}`,
+            });
+            setLogSaved(true);
           }
         } else {
           setError("Analysis failed. Please try again.");
@@ -165,7 +245,18 @@ export default function AIGuidancePage() {
     }
 
     setLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
+
+  // Risk alert display helpers
+  const alertLevel = riskAlert?.level ?? "MEDIUM";
+  const alertColor = riskColor(alertLevel);
+  const alertBg =
+    alertLevel.toUpperCase() === "HIGH"
+      ? "bg-[#fff0f0] border-[#f5c6c6]"
+      : alertLevel.toUpperCase() === "LOW"
+      ? "bg-[#f0fff4] border-[#b7e4c7]"
+      : "bg-[#fffbe6] border-[#ffe08a]";
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] overflow-x-hidden">
@@ -174,11 +265,13 @@ export default function AIGuidancePage() {
       {showSpecialistModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={() => setShowSpecialistModal(false)}>
-          <div className="bg-white rounded-[40px] p-12 max-w-md mx-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-[40px] p-12 max-w-md mx-6 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}>
             <span className="material-symbols-outlined text-4xl text-black mb-4 block">medical_services</span>
             <h3 className="font-serif font-medium text-2xl mb-4">On-Call Specialist</h3>
             <p className="font-sans text-sm text-[#5e5e5e] leading-relaxed mb-8">
-              In a real emergency, please contact your local health authority or nearest clinic. PANACEA connects with regional health networks in the full release.
+              In a real emergency, please contact your local health authority or nearest clinic.
+              PANACEA connects with regional health networks in the full release.
             </p>
             <div className="space-y-4">
               <div className="p-4 bg-[#f3f3f4] rounded-xl text-left">
@@ -196,12 +289,37 @@ export default function AIGuidancePage() {
 
       <main className="max-w-[1200px] mx-auto px-16 py-12 pt-32">
 
-        {/* Voice Assistant — 실제 Web Speech API */}
+        {/* Disease context banner — shown when arriving from Body Atlas */}
+        {prefillDisease && (
+          <div className="mb-8 flex items-center justify-between gap-4 px-6 py-4 rounded-2xl border border-[#cfc4c5] bg-white">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-black text-[20px]"
+                style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+              <div>
+                <p className="font-sans text-xs font-semibold tracking-[0.2em] uppercase text-[#5e5e5e]">Body Atlas Context</p>
+                <p className="font-sans text-sm text-black">
+                  Symptoms pre-selected for{" "}
+                  <span className="font-semibold capitalize">{prefillDisease}</span>.
+                  Review and adjust below.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setPrefillDisease(null); setSelected(new Set()); }}
+              className="font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] hover:text-black transition-colors whitespace-nowrap">
+              Clear ×
+            </button>
+          </div>
+        )}
+
+        {/* Voice Assistant — Web Speech API */}
         <section className="mb-32">
           <div
             onClick={voiceSupported ? toggleVoice : undefined}
             className={`rounded-full px-8 py-6 flex items-center justify-between border transition-all ${
-              voiceActive ? "border-black bg-black text-white" : "border-[#cfc4c5] cursor-pointer hover:border-black"
+              voiceActive
+                ? "border-black bg-black text-white"
+                : "border-[#cfc4c5] cursor-pointer hover:border-black"
             } ${voiceSupported ? "cursor-pointer" : "cursor-default"}`}
             style={{ background: voiceActive ? "#000" : "rgba(255,255,255,0.7)", backdropFilter: "blur(24px)" }}
           >
@@ -249,7 +367,7 @@ export default function AIGuidancePage() {
           {/* Left: Steps */}
           <div className="lg:col-span-7 space-y-32">
 
-            {/* Step 1 — Location */}
+            {/* Step 1 — Location hotspots */}
             <div>
               <div className="mb-8">
                 <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] block mb-2">01 — Location</span>
@@ -263,31 +381,54 @@ export default function AIGuidancePage() {
                   className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
                   style={{ filter: "grayscale(1)" }}
                 />
+                {/* Head — headache */}
                 <div
-                  className="absolute w-4 h-4 bg-black rounded-full cursor-pointer hover:scale-150 transition-transform"
-                  style={{ top: "25%", left: "48%", boxShadow: "0 0 0 8px rgba(0,0,0,0.15)" }}
-                  onClick={() => { toggleSymptom("cough"); toggleSymptom("fever"); }}
-                  title="Chest"
-                />
-                <div
-                  className="absolute w-4 h-4 bg-[#cfc4c5] rounded-full hover:bg-black cursor-pointer transition-colors hover:scale-150"
-                  style={{ top: "15%", left: "50%" }}
+                  className={`absolute w-4 h-4 rounded-full cursor-pointer transition-all hover:scale-150 ${selected.has("headache") ? "bg-black" : "bg-[#cfc4c5] hover:bg-black"}`}
+                  style={{ top: "15%", left: "50%", boxShadow: selected.has("headache") ? "0 0 0 8px rgba(0,0,0,0.15)" : "none" }}
                   onClick={() => toggleSymptom("headache")}
-                  title="Head"
+                  title="Head — Headache"
                 />
+                {/* Chest — cough */}
                 <div
-                  className="absolute w-4 h-4 bg-[#cfc4c5] rounded-full hover:bg-black cursor-pointer transition-colors hover:scale-150"
-                  style={{ top: "45%", left: "40%" }}
+                  className={`absolute w-4 h-4 rounded-full cursor-pointer transition-all hover:scale-150 ${selected.has("cough") ? "bg-black" : "bg-[#cfc4c5] hover:bg-black"}`}
+                  style={{ top: "28%", left: "48%", boxShadow: selected.has("cough") ? "0 0 0 8px rgba(0,0,0,0.15)" : "none" }}
+                  onClick={() => toggleSymptom("cough")}
+                  title="Chest — Cough"
+                />
+                {/* Abdomen — fever */}
+                <div
+                  className={`absolute w-4 h-4 rounded-full cursor-pointer transition-all hover:scale-150 ${selected.has("fever") ? "bg-black" : "bg-[#cfc4c5] hover:bg-black"}`}
+                  style={{ top: "42%", left: "52%", boxShadow: selected.has("fever") ? "0 0 0 8px rgba(0,0,0,0.15)" : "none" }}
+                  onClick={() => toggleSymptom("fever")}
+                  title="Abdomen — Fever / Chills"
+                />
+                {/* Legs — fatigue */}
+                <div
+                  className={`absolute w-4 h-4 rounded-full cursor-pointer transition-all hover:scale-150 ${selected.has("fatigue") ? "bg-black" : "bg-[#cfc4c5] hover:bg-black"}`}
+                  style={{ top: "65%", left: "46%", boxShadow: selected.has("fatigue") ? "0 0 0 8px rgba(0,0,0,0.15)" : "none" }}
                   onClick={() => toggleSymptom("fatigue")}
-                  title="Body"
+                  title="Lower Body — Fatigue / Joint Pain"
                 />
                 <div className="absolute bottom-4 left-4 bg-black/50 text-white text-[10px] font-sans px-3 py-1.5 rounded-full backdrop-blur-sm">
                   Tap hotspots to select symptoms
                 </div>
+                {/* Active symptom labels */}
+                {selected.size > 0 && (
+                  <div className="absolute top-4 right-4 flex flex-wrap gap-1 justify-end max-w-[160px]">
+                    {Array.from(selected).map((id) => {
+                      const s = SYMPTOMS.find((s) => s.id === id);
+                      return s ? (
+                        <span key={id} className="bg-black text-white text-[9px] font-sans px-2 py-1 rounded-full font-semibold tracking-wider uppercase">
+                          {s.label}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Step 2 — Symptoms */}
+            {/* Step 2 — Symptoms grid */}
             <div>
               <div className="mb-8">
                 <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] block mb-2">02 — Presentation</span>
@@ -299,7 +440,9 @@ export default function AIGuidancePage() {
                   return (
                     <button key={s.id} onClick={() => toggleSymptom(s.id)}
                       className={`flex flex-col items-center justify-center p-8 border rounded-xl transition-all group ${
-                        active ? "bg-black text-white border-black shadow-lg" : "border-[#cfc4c5] hover:bg-black hover:text-white hover:border-black"
+                        active
+                          ? "bg-black text-white border-black shadow-lg"
+                          : "border-[#cfc4c5] hover:bg-black hover:text-white hover:border-black"
                       }`}>
                       <span className="material-symbols-outlined text-4xl mb-4 group-hover:scale-110 transition-transform">{s.icon}</span>
                       <span className="font-sans text-xs font-semibold tracking-widest uppercase">{s.label}</span>
@@ -323,10 +466,11 @@ export default function AIGuidancePage() {
             </div>
           </div>
 
-          {/* Right: Step 3 — AI Synthesis */}
+          {/* Right: Step 3 — Results + Alert */}
           <div className="lg:col-span-5">
             <div className="sticky top-28 space-y-8">
 
+              {/* Results card */}
               <div className="rounded-xl p-8 relative overflow-hidden border border-[#cfc4c5]"
                 style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(24px)" }}>
                 <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none"
@@ -342,7 +486,9 @@ export default function AIGuidancePage() {
                   <div className="py-12 text-center">
                     <span className="material-symbols-outlined text-[48px] text-[#cfc4c5] block mb-4">biotech</span>
                     <p className="font-sans text-xs text-[#5e5e5e] uppercase tracking-widest leading-relaxed">
-                      {voiceSupported ? "Speak or select symptoms,\nthen run AI Analysis" : "Select symptoms above\nand run AI Analysis"}
+                      {voiceSupported
+                        ? "Speak or select symptoms,\nthen run AI Analysis"
+                        : "Select symptoms above\nand run AI Analysis"}
                     </p>
                   </div>
                 )}
@@ -351,7 +497,8 @@ export default function AIGuidancePage() {
                   <div className="py-12 text-center space-y-4">
                     <div className="flex justify-center gap-2">
                       {[0, 0.15, 0.3].map((d, i) => (
-                        <div key={i} className="w-2 h-2 rounded-full bg-black animate-bounce" style={{ animationDelay: `${d}s` }} />
+                        <div key={i} className="w-2 h-2 rounded-full bg-black animate-bounce"
+                          style={{ animationDelay: `${d}s` }} />
                       ))}
                     </div>
                     <p className="font-sans text-xs text-[#5e5e5e] uppercase tracking-widest">Analysing symptoms...</p>
@@ -376,7 +523,18 @@ export default function AIGuidancePage() {
                       ))}
                     </div>
 
-                    <div className="mt-12 space-y-4">
+                    {/* Log saved confirmation */}
+                    {logSaved && (
+                      <div className="mt-6 flex items-center gap-2 px-4 py-3 bg-[#f0fff4] border border-[#b7e4c7] rounded-xl">
+                        <span className="material-symbols-outlined text-[#50a14f] text-[16px]"
+                          style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        <p className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#50a14f]">
+                          Saved to Health Log
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="mt-8 space-y-4">
                       <button
                         onClick={() => router.push("/profile")}
                         className="w-full py-4 bg-black text-white rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#1b1b1b] transition-colors active:scale-95">
@@ -396,14 +554,61 @@ export default function AIGuidancePage() {
                 </p>
               </div>
 
-              {/* Alert banner */}
-              <div className="p-6 bg-[#e2e2e2] rounded-xl border border-[#cfc4c5] flex gap-4 items-start">
-                <span className="material-symbols-outlined text-black">info</span>
-                <div>
-                  <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-black block mb-1">Local Threat Alert</span>
-                  <p className="text-sm text-[#4c4546]">There is an ongoing Influenza outbreak reported within a 5km radius of your current location.</p>
+              {/* Local Threat Alert — live from risk_events DB */}
+              {alertLoading ? (
+                <div className="p-6 bg-[#e2e2e2] rounded-xl border border-[#cfc4c5] animate-pulse">
+                  <div className="h-3 w-32 bg-[#cfc4c5] rounded mb-3" />
+                  <div className="h-3 w-48 bg-[#cfc4c5] rounded" />
                 </div>
-              </div>
+              ) : riskAlert ? (
+                <div className={`p-6 rounded-xl border flex gap-4 items-start ${alertBg}`}>
+                  <span
+                    className="material-symbols-outlined mt-0.5"
+                    style={{ color: alertColor, fontVariationSettings: "'FILL' 1", fontSize: "20px" }}
+                  >
+                    {riskAlert.level?.toUpperCase() === "HIGH" ? "warning" :
+                     riskAlert.level?.toUpperCase() === "LOW"  ? "check_circle" : "info"}
+                  </span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase"
+                        style={{ color: alertColor }}>
+                        Local Risk · {riskAlert.level?.toUpperCase()}
+                      </span>
+                      {riskAlert.recorded_at && (
+                        <span className="font-mono text-[9px] text-[#5e5e5e]">
+                          {new Date(riskAlert.recorded_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-[#4c4546] leading-relaxed">
+                      {riskAlert.description ??
+                        `${riskAlert.level} risk level detected in ${riskAlert.location ?? "your region"}.`}
+                    </p>
+                    {riskAlert.location && (
+                      <p className="font-mono text-[10px] text-[#5e5e5e] mt-2 uppercase tracking-widest">
+                        {riskAlert.location}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => router.push("/heatmap")}
+                    className="flex-shrink-0 font-sans text-[10px] font-semibold tracking-widest uppercase text-[#5e5e5e] hover:text-black transition-colors mt-0.5">
+                    Map →
+                  </button>
+                </div>
+              ) : (
+                /* Fallback when no risk events in DB */
+                <div className="p-6 bg-[#e2e2e2] rounded-xl border border-[#cfc4c5] flex gap-4 items-start">
+                  <span className="material-symbols-outlined text-[#5e5e5e]">info</span>
+                  <div>
+                    <span className="font-sans text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5e5e5e] block mb-1">
+                      Local Threat Alert
+                    </span>
+                    <p className="text-sm text-[#4c4546]">No active alerts in your region.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -414,8 +619,18 @@ export default function AIGuidancePage() {
         <div className="max-w-[1200px] mx-auto px-16 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="font-serif font-medium text-2xl text-black">PANACEA</div>
           <nav className="flex gap-8">
-            {["Privacy Policy", "Terms of Service", "Research Papers", "Contact"].map((l) => (
-              <a key={l} href="#" className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e] hover:text-black transition-colors">{l}</a>
+            {[
+              { label: "Privacy Policy",  href: "/legal#privacy-commitment" },
+              { label: "Terms of Use",    href: "/legal#terms-acceptance"   },
+              { label: "Research Papers", href: "https://github.com/Quackk08/ARK_PANACEA" },
+              { label: "Contact",         href: "/legal#privacy-contact"    },
+            ].map(({ label, href }) => (
+              <a key={label} href={href}
+                target={href.startsWith("http") ? "_blank" : undefined}
+                rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+                className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e] hover:text-black transition-colors">
+                {label}
+              </a>
             ))}
           </nav>
           <div className="font-sans text-xs font-semibold tracking-widest uppercase text-[#5e5e5e]">

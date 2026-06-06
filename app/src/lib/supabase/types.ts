@@ -250,7 +250,7 @@ export type Database = {
   }
 }
 
-// 편의 타입 별칭
+// Convenience type aliases
 export type Profile       = Database["public"]["Tables"]["profiles"]["Row"];
 export type HealthLog     = Database["public"]["Tables"]["health_logs"]["Row"];
 export type RiskEvent     = Database["public"]["Tables"]["risk_events"]["Row"];
