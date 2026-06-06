@@ -18,7 +18,7 @@ const SECTIONS: Section[] = [
   { id: "terms-governing",     part: "terms",   title: "Governing Law" },
   { id: "privacy-commitment",  part: "privacy", title: "Privacy-by-Design" },
   { id: "privacy-pii",         part: "privacy", title: "Non-Collection of PII" },
-  { id: "privacy-ondevice",    part: "privacy", title: "On-Device AI Processing" },
+  { id: "privacy-ondevice",    part: "privacy", title: "Server-Side AI Processing" },
   { id: "privacy-pipeline",    part: "privacy", title: "Anonymization Pipeline" },
   { id: "privacy-security",    part: "privacy", title: "Data Security" },
   { id: "privacy-contact",     part: "privacy", title: "Contact" },
@@ -210,7 +210,7 @@ export default function LegalPage() {
                 <ul className="space-y-3">
                   {[
                     "Visual, touch-based health education interfaces (The Body Atlas).",
-                    "Offline-first, on-device AI symptom analysis using TensorFlow.js.",
+                    "Server-side AI symptom analysis using a controlled symptom enumeration API (MVP scope).",
                     "Dynamic voice and color-guided accessibility features.",
                     "A localized community outbreak alert system (Heatmaps).",
                     "Gamified prevention incentives (The Guardian Challenge) redeemable through local NGO partnerships.",
@@ -222,7 +222,7 @@ export default function LegalPage() {
                   ))}
                 </ul>
                 <KoreanNote>
-                  본 서비스는 비텍스트(No-Text) 기반의 신체 아틀라스 교육, TensorFlow.js를 활용한 온디바이스 AI 증상 모니터링, 그리고 익명 지역별 발병 히트맵 서비스를 제공합니다.
+                  본 서비스는 비텍스트(No-Text) 기반의 신체 아틀라스 교육, 서버사이드 AI 증상 분석 API(열거형 증상 입력 기반), 그리고 익명 지역별 발병 히트맵 서비스를 제공합니다.
                 </KoreanNote>
               </LegalSection>
 
@@ -234,7 +234,7 @@ export default function LegalPage() {
                 <ul className="space-y-3">
                   {[
                     "Attempt to feed false, mass-generated data to manipulate the localized symptom heatmap.",
-                    "Reverse-engineer, disable, or tamper with the security, anonymization pipelines, or local offline databases (IndexedDB/localStorage) of the app.",
+                    "Reverse-engineer, disable, or tamper with the security or anonymization pipelines of the app.",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3">
                       <div className="w-1.5 h-1.5 rounded-full bg-[#ba1a1a] mt-2 flex-shrink-0" />
@@ -248,13 +248,13 @@ export default function LegalPage() {
               <LegalSection id="terms-liability" num="5" title="Limitation of Liability">
                 <p>
                   PANACEA is developed by Team ARK for the 16th e-ICON World Contest and is provided
-                  on an <strong>"as-is"</strong> and <strong>"as-available"</strong> basis. To the
+                  on an <strong>&ldquo;as-is&rdquo;</strong> and <strong>&ldquo;as-available&rdquo;</strong> basis. To the
                   maximum extent permitted by applicable law, Team ARK, its team members, and
                   Daejeon Daeshin High School are not liable for any direct, indirect, incidental,
                   or consequential damages resulting from the use or inability to use this platform.
                 </p>
                 <KoreanNote>
-                  본 앱은 제16회 e-ICON 세계대회 참가를 위해 개발된 프로토타입으로 "있는 그대로" 제공됩니다. 개발진(Team ARK) 및 학교는 본 앱의 사용으로 인해 발생하는 직간접적 손해에 대해 법적 책임을 지지 않습니다.
+                  본 앱은 제16회 e-ICON 세계대회 참가를 위해 개발된 프로토타입으로 &ldquo;있는 그대로&rdquo; 제공됩니다. 개발진(Team ARK) 및 학교는 본 앱의 사용으로 인해 발생하는 직간접적 손해에 대해 법적 책임을 지지 않습니다.
                 </KoreanNote>
               </LegalSection>
 
@@ -284,23 +284,28 @@ export default function LegalPage() {
 
               {/* Section 1 */}
               <LegalSection id="privacy-commitment" num="1" title="Privacy-by-Design Commitment">
+                <p className="mb-4">
+                  At PANACEA, we believe that health data is deeply personal. An account is required
+                  to access personalized features such as health logs, mission tracking, and the
+                  Guardian Challenge. We collect only the minimum data necessary to operate the
+                  platform, and we never share your personal information with third parties.
+                </p>
                 <p>
-                  At PANACEA, we believe that health data is deeply personal. In alignment with the
-                  architecture detailed in the e-ICON proposal, our platform is built from the ground
-                  up to respect your anonymity. We do not require account creation, email
-                  verification, or login credentials.
+                  Your health data is stored under a pseudonymous user ID, and your identity is
+                  never included in community-level heatmap aggregations.
                 </p>
                 <KoreanNote>
-                  PANACEA는 사용자의 개인정보를 최우선으로 보호합니다. 회원가입, 로그인, 이메일 등의 식별 정보를 전혀 요구하지 않습니다.
+                  PANACEA는 개인화 기능(건강 기록, 미션, Guardian Challenge) 이용을 위해 계정 생성이 필요합니다. 플랫폼 운영에 필요한 최소한의 정보만 수집하며, 개인정보는 제3자에게 공유되지 않습니다. 건강 데이터는 익명 식별자 하에 저장됩니다.
                 </KoreanNote>
               </LegalSection>
 
               {/* Section 2 */}
-              <LegalSection id="privacy-pii" num="2" title="Non-Collection of Personal Identifiable Information (PII)">
+              <LegalSection id="privacy-pii" num="2" title="Minimal Collection of Personal Information">
                 <ul className="space-y-3 mb-4">
                   {[
-                    "We do not collect, store, or share names, email addresses, phone numbers, static IP addresses, or device identifiers.",
-                    "All core functions, including AI symptom evaluations, are accessible without revealing your identity.",
+                    "We collect your email address for authentication purposes only. It is not used for marketing or shared with third parties.",
+                    "We do not collect phone numbers, precise location coordinates, or persistent device identifiers.",
+                    "Health data you submit (symptom analyses, mission records) is stored under a pseudonymous user ID and is not linked to your email in community-facing features.",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3">
                       <div className="w-1.5 h-1.5 rounded-full bg-[#50a14f] mt-2 flex-shrink-0" />
@@ -309,16 +314,23 @@ export default function LegalPage() {
                   ))}
                 </ul>
                 <KoreanNote>
-                  이름, 연락처, 정적 IP, 고유 디바이스 ID 등 개인을 식별할 수 있는 정보를 일절 수집하지 않습니다.
+                  인증 목적으로 이메일 주소만 수집합니다. 마케팅 또는 제3자 공유에 사용되지 않습니다. 건강 데이터는 커뮤니티 노출 없이 익명 식별자로만 저장됩니다.
                 </KoreanNote>
               </LegalSection>
 
               {/* Section 3 */}
-              <LegalSection id="privacy-ondevice" num="3" title="On-Device AI Processing (Zero Server Transmission of Raw Data)">
+              <LegalSection id="privacy-ondevice" num="3" title="Server-Side AI Processing — Controlled Symptom Enumerations">
+                <p className="mb-4">
+                  In the current MVP, symptom analysis is performed via a secured server-side API.
+                  To minimize data exposure, symptoms are submitted as a controlled set of
+                  enumerated values (e.g., fever, cough, fatigue) — never as free-text or
+                  personally identifiable descriptions.
+                </p>
                 <ul className="space-y-3">
                   {[
-                    "Your symptom assessments are processed entirely on your device using TensorFlow.js.",
-                    "Raw individual symptom selections are kept in your browser's temporary storage (IndexedDB / localStorage) and are never transmitted to our external servers (Firebase/Supabase).",
+                    "Only pre-defined symptom enum values are transmitted to the analysis API — no free text, no biometric data.",
+                    "Analysis results are saved to your personal health log under your user ID, encrypted at rest via Supabase.",
+                    "IP addresses used for rate-limiting are one-way hashed (SHA-256) and are never stored in identifiable form.",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3">
                       <div className="w-1.5 h-1.5 rounded-full bg-[#50a14f] mt-2 flex-shrink-0" />
@@ -327,7 +339,7 @@ export default function LegalPage() {
                   ))}
                 </ul>
                 <KoreanNote>
-                  입력된 증상 데이터는 TensorFlow.js를 통해 사용자 기기 내에서만 처리됩니다. 원본 증상 기록은 외부 서버로 전송되지 않으며, 오직 브라우저 내부 저장소(IndexedDB / localStorage)에 안전하게 임시 보관됩니다.
+                  현재 MVP에서는 보안된 서버사이드 API를 통해 증상 분석이 이루어집니다. 증상은 사전 정의된 열거형 값(예: 발열, 기침)으로만 전송되며, 분석 결과는 Supabase에 암호화되어 사용자 ID 하에 저장됩니다. IP는 SHA-256으로 단방향 해시 처리되어 식별 불가 형태로만 사용됩니다.
                 </KoreanNote>
               </LegalSection>
 
@@ -387,11 +399,15 @@ export default function LegalPage() {
 
               {/* Section 5 */}
               <LegalSection id="privacy-security" num="5" title="Data Security">
+                <p className="mb-4">
+                  All data is stored on Supabase, a SOC 2 compliant cloud platform that encrypts
+                  data at rest (AES-256) and in transit (TLS 1.2+). Row-Level Security (RLS)
+                  policies ensure that each user can only access their own records.
+                </p>
                 <p>
-                  We employ industry-standard secure cloud services for community-level data
-                  syncing. Since we hold no personal data or decryption keys for local storage,
-                  data breaches cannot result in the exposure of your identity or personal health
-                  history.
+                  Your personal health logs and mission records are isolated to your account.
+                  Community-level heatmap data is stored in aggregate form only, with no
+                  individual-level records that could be linked back to your identity.
                 </p>
               </LegalSection>
 

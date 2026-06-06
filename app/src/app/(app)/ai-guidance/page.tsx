@@ -97,8 +97,10 @@ export default function AIGuidancePage() {
   useEffect(() => {
     const disease = searchParams.get("disease")?.toLowerCase() ?? null;
     if (!disease) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPrefillDisease(disease);
     const preselected = DISEASE_SYMPTOM_MAP[disease];
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (preselected) setSelected(new Set(preselected));
   }, [searchParams]);
 

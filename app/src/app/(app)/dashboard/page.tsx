@@ -87,7 +87,9 @@ export default function DashboardPage() {
     if (!userId || savingId) return;
     setSavingId(missionId);
 
-    if (completedIds.has(missionId)) {
+    const wasCompleted = completedIds.has(missionId);
+
+    if (wasCompleted) {
       const today = new Date().toISOString().split("T")[0];
       await supabase
         .from("user_missions")
@@ -105,6 +107,27 @@ export default function DashboardPage() {
       });
       setCompletedIds((prev) => new Set([...prev, missionId]));
     }
+
+    // Sync XP + guardian_level to profiles so Guardian/Profile pages stay in sync
+    const mission = missions.find((m) => m.id === missionId);
+    if (mission) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("xp")
+        .eq("id", userId)
+        .single();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentXp = (prof as any)?.xp ?? 0;
+      const delta  = wasCompleted ? -(mission.xp_reward ?? 0) : (mission.xp_reward ?? 0);
+      const newXp  = Math.max(0, currentXp + delta);
+      const newLevel = Math.floor(newXp / 500) + 1;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("profiles") as any).upsert(
+        { id: userId, xp: newXp, guardian_level: newLevel },
+        { onConflict: "id" },
+      );
+    }
+
     setSavingId(null);
   }
 
