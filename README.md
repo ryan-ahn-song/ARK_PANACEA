@@ -84,7 +84,7 @@ PANACEA addresses all four with one integrated platform.
 
 ## Team ARK
 
-| | **Kim Sunmin** (김선민) | **Ryan Ahn Song** (안송라이언) |
+| | **Kim Sunmin** (김선민) | **Ryan Ahn Song** (송리안) |
 |---|---|---|
 | **Role** | Team Leader | Developer |
 | **GitHub** | [@Quackk08](https://github.com/Quackk08) | [@biro425](https://github.com/biro425) |
