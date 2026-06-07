@@ -61,9 +61,12 @@ CREATE TABLE IF NOT EXISTS public.user_missions (
   user_id      UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   mission_id   UUID REFERENCES public.missions(id) ON DELETE CASCADE,
   completed_at TIMESTAMPTZ DEFAULT NOW(),
-  streak_day   INTEGER DEFAULT 1,
-  UNIQUE (user_id, mission_id, completed_at::DATE)
+  streak_day   INTEGER DEFAULT 1
 );
+-- Prevent duplicate completions on the same calendar day per user+mission
+-- (expression-based unique index — inline UNIQUE with ::DATE cast is not valid SQL)
+CREATE UNIQUE INDEX IF NOT EXISTS user_missions_daily_unique
+  ON public.user_missions (user_id, mission_id, (completed_at::DATE));
 CREATE INDEX IF NOT EXISTS user_missions_user_id_idx ON public.user_missions(user_id);
 CREATE INDEX IF NOT EXISTS user_missions_completed_at_idx ON public.user_missions(completed_at);
 
