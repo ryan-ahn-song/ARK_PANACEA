@@ -104,7 +104,7 @@ export default function DashboardPage() {
       const { error: insErr } = await supabase.from("user_missions").insert({
         user_id:      userId,
         mission_id:   missionId,
-        completed_at: new Date().toISOString(),
+        completed_at: new Date().toISOString().split("T")[0], // DATE only (YYYY-MM-DD)
       });
       if (insErr) { setSavingId(null); return; }
       setCompletedIds((prev) => new Set([...prev, missionId]));

@@ -230,21 +230,21 @@ export type Database = {
       }
       user_missions: {
         Row: {
-          completed_at: string | null
+          completed_at: string        // DATE (YYYY-MM-DD)
           id: string
           mission_id: string | null
           streak_day: number | null
           user_id: string | null
         }
         Insert: {
-          completed_at?: string | null
+          completed_at?: string       // DATE (YYYY-MM-DD), defaults to CURRENT_DATE
           id?: string
           mission_id?: string | null
           streak_day?: number | null
           user_id?: string | null
         }
         Update: {
-          completed_at?: string | null
+          completed_at?: string
           id?: string
           mission_id?: string | null
           streak_day?: number | null
