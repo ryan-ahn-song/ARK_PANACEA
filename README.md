@@ -87,11 +87,11 @@ PANACEA addresses all four with one integrated platform.
 | | **Kim Sunmin** (김선민) | **Ryan Ahn Song** (송리안) |
 |---|---|---|
 | **Role** | Team Leader | Developer |
-| **GitHub** | [@Quackk08](https://github.com/Quackk08) | [@biro425](https://github.com/biro425) |
+| **GitHub** | [@biro425](https://github.com/biro425) | [@Quackk08](https://github.com/Quackk08) |
 | **School** | Daejeon Daeshin High School | Daejeon Daeshin High School |
-| **Focus** | Frontend UI/UX · Next.js / React · TypeScript · Interactive SVG Body Interface · No-Text UX design · Tailwind CSS · Figma | Backend architecture · Supabase integration · AI logic · Community heatmap & anonymization · Offline-first structure · Docker |
+| **Focus** | Backend architecture · Supabase integration · AI logic · Community heatmap & anonymization · Offline-first structure · Docker  | Frontend UI/UX · Next.js / React · TypeScript · Interactive SVG Body Interface · No-Text UX design · Tailwind CSS · Figma |
 | **Languages** | C, C++, C#, JavaScript, TypeScript, Python | C, C++, C#, Python, JavaScript, TypeScript |
-| **Tools** | React, Next.js, Tailwind CSS, TensorFlow.js, Firebase, Figma | Node.js, Firebase, Supabase, TensorFlow.js, Leaflet.js, GitHub, Docker |
+| **Tools** | Node.js, Firebase, Supabase, TensorFlow.js, Leaflet.js, GitHub, Docker |  React, Next.js, Tailwind CSS, TensorFlow.js, Firebase, Figma |
 
 **Teacher advisor:** Park Jungeun (박정은), Daejeon Daeshin High School
 
