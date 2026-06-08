@@ -19,17 +19,46 @@ export default function NewPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [linkExpired, setLinkExpired] = useState(false);
 
-  // Verify session — prevent direct access
+  // Verify session via two mechanisms:
+  // 1. onAuthStateChange PASSWORD_RECOVERY — fires when Supabase detects a recovery token
+  //    (handles both hash-fragment and PKCE flows processed client-side)
+  // 2. getUser() fallback — fires immediately if the callback already exchanged the code
+  //    and set session cookies before this page loaded
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.replace("/login?error=auth_failed");
-        return;
+    // Check URL for expired-link flag set by callback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "link_expired") {
+      setLinkExpired(true);
+      return;
+    }
+
+    // Listen for PASSWORD_RECOVERY auth event (hash-based or deferred PKCE)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
+        setReady(true);
       }
-      setReady(true);
     });
-  }, [supabase, router]);
+
+    // Also check for an already-active session (PKCE callback set cookies before page load)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setReady(true);
+    });
+
+    // After 6s with no session, give up and redirect to login
+    const fallback = setTimeout(() => {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) router.replace("/login?error=auth_failed");
+      });
+    }, 6000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(fallback);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Redirect to login page 3 seconds after completion
   useEffect(() => {
@@ -64,6 +93,31 @@ export default function NewPasswordPage() {
 
     setDone(true);
     setLoading(false);
+  }
+
+  if (linkExpired) {
+    return (
+      <div className="min-h-screen bg-[#f9f9f9] flex items-center justify-center px-6">
+        <div className="w-full max-w-[440px] flex flex-col items-center text-center gap-6">
+          <div className="w-20 h-20 rounded-full bg-[#ba1a1a] flex items-center justify-center">
+            <span className="material-symbols-outlined text-white text-[36px]">link_off</span>
+          </div>
+          <div>
+            <h1 className="font-serif font-light text-[32px] mb-2">Link Expired</h1>
+            <p className="font-sans text-sm text-[#5e5e5e]">
+              This password reset link has expired or already been used.<br />
+              Please request a new one.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/login")}
+            className="px-8 py-3 bg-black text-white rounded-full font-sans text-xs font-semibold tracking-widest uppercase hover:bg-[#1b1b1b] transition-all"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!ready) {

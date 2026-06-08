@@ -19,7 +19,12 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const type = searchParams.get("type"); // "signup" | "reset" | null
 
+  // No code: for reset links, send to new-password and let the client-side
+  // Supabase SDK handle any hash-fragment token. For other cases, show an error.
   if (!code) {
+    if (type === "reset") {
+      return NextResponse.redirect(`${origin}/auth/new-password`);
+    }
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
   }
 
@@ -58,6 +63,11 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.error("[auth/callback] exchangeCodeForSession failed:", error.message);
+    // For reset flow: send to new-password anyway — the page will re-verify
+    // session and show a clear error if it's truly invalid
+    if (type === "reset") {
+      return NextResponse.redirect(`${origin}/auth/new-password?error=link_expired`);
+    }
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
