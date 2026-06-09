@@ -168,6 +168,10 @@ function LoginForm() {
       }
     }
 
+    // refresh() forces Next.js to re-run middleware with the new session cookies
+    // before navigating — without this, the App Router may serve a cached
+    // unauthenticated response and the redirect silently fails
+    router.refresh();
     router.push("/dashboard");
   }
 
